@@ -3,6 +3,7 @@ import { createObserveModule } from '@nestjs/observe';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { ApplicationsModule } from './applications/applications.module.js';
+import { UsersModule } from './users/users.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -16,6 +17,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       serviceId: 'jo-board-backend',
     }),
     ApplicationsModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
