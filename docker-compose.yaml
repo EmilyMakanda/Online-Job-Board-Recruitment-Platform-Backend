@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  oracle-db:
+    image: gvenzl/oracle-xe:21-slim
+    container_name: oracle21c_jobboard
+    ports:
+      - "1521:1521"
+    environment:
+      - ORACLE_PASSWORD=YourStrongPassword123! # SYS/SYSTEM/SYSDBA password
+      - ORACLE_DATABASE=job_board_pdb # Creates a pluggable database named job_board_pdb
+      - APP_USER=job_board_user # Creates a user named job_board_user inside job_board_pdb
+      - APP_USER_PASSWORD=jobpassword # Sets the password for the job_board_user user
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+    restart: always
+
+volumes:
+  oracle_data:
