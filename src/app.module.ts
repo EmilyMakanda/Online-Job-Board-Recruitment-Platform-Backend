@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { ApplicationsModule } from './applications/applications.module.js';
+import { JobModule } from './jobs/jobs.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -36,6 +37,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       }),
     }),
     ApplicationsModule,
+    JobModule,
   ],
   controllers: [AppController],
   providers: [AppService],
