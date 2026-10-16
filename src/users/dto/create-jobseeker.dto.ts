@@ -8,7 +8,7 @@ import {
   IsUrl,
   MaxLength,
   Matches,
-  MinLength
+  MinLength,
 } from 'class-validator';
 
 export class CreateJobSeekerDto {
@@ -24,10 +24,10 @@ export class CreateJobSeekerDto {
   email: string;
 
   @ApiProperty({ example: 'StrongPass123!' })
-@IsString()
-@MinLength(8)
-@MaxLength(64)
-password: string;
+  @IsString()
+  @MinLength(8)
+  @MaxLength(64)
+  password: string;
 
   @ApiPropertyOptional({ example: '+265999123456' })
   @IsOptional()
