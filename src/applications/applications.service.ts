@@ -1,26 +1,56 @@
-import { Injectable } from '@nestjs/common';
-import { CreateApplicationDto } from './dto/create-application.dto.js';
-import { UpdateApplicationDto } from './dto/update-application.dto.js';
+import { Test, TestingModule } from '@nestjs/testing';
+import { ApplicationsController} from './applications.controller.js';
+import { ApplicationsService } from './applications.service.js';
 
-@Injectable()
-export class ApplicationsService {
-  create(createApplicationDto: CreateApplicationDto) {
-    return 'This action adds a new application';
-  }
 
-  findAll() {
-    return `This action returns all applications`;
-  }
 
-  findOne(id: number) {
-    return `This action returns a #${id} application`;
-  }
+describe('ApplicationsService', () => {
+  let service: ApplicationsService;
 
-  update(id: number, updateApplicationDto: UpdateApplicationDto) {
-    return `This action updates a #${id} application`;
-  }
+  const mockApplicationsService={
+    create: jest.fn(),
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    findByJobSeeker: jest.fn(),
+    update: jest.fn(),
+    remove: jest.fn(),
+  };
 
-  remove(id: number) {
-    return `This action removes a #${id} application`;
-  }
-}
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers:[ApplicationsController],
+      providers: [{
+         provide: ApplicationsService,
+         useValue: mockApplicationsService,
+    },
+  ],
+  }).compile();
+
+  service = module.get<ApplicationsService>(
+    ApplicationsService,
+  );
+});
+
+it('should be defined', () => {
+  expect(service).toBeDefined();
+})
+
+it('should return all applications', async() => {
+
+  const applications = [
+  {
+    applicationId:1,
+    jobSeekerId: 2,
+    jobId: 5,
+    status: 'SUBMITTED',
+  },
+  ];
+
+  mockApplicationsService.findAll.mockResolvedValue(
+    applications,
+  );
+  await expect(service.findAll()).resolves.toEqual(
+   applications
+  );
+});
+});
