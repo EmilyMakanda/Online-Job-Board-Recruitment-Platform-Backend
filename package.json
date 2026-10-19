@@ -37,6 +37,7 @@
     "bullmq": "^6.3.13",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "nodemailer": "^10.1.7",
     "oracledb": "^7.0.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
@@ -53,6 +54,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.5",
+    "@types/nodemailer": "^8.0.2",
     "@types/passport-jwt": "^4.0.1",
     "@types/pdf-parse": "^1.1.5",
     "@types/supertest": "^7.2.1",
@@ -63,11 +65,16 @@
     "supertest": "^7.3.1",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
+    "vite": "^8.3.4",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^5.0.4"
   },
   "overrides": {
     "tmp": "^0.2.6",
     "undici": "^6.29.0"
+  },
+  "allowScripts": {
+    "bcrypt@6.0.0": true,
+    "oracledb@7.0.1": true
   }
 }
