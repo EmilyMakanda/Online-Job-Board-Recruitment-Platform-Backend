@@ -7,10 +7,15 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { ApplicationsModule } from './applications/applications.module.js';
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { JobModule } from './jobs/jobs.module.js';
 =======
 import { UsersModule } from './users/users.module.js';
 >>>>>>> main
+=======
+import { JobModule } from './jobs/jobs.module.js';
+import { UsersModule } from './users/users.module.js';
+>>>>>>> d627619025ca16e0275e4356af0d7c4aad1f780e
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -38,10 +43,15 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
   
     ApplicationsModule,
 <<<<<<< HEAD
+<<<<<<< HEAD
     JobModule,
 =======
     UsersModule,
 >>>>>>> main
+=======
+    JobModule,
+    UsersModule,
+>>>>>>> d627619025ca16e0275e4356af0d7c4aad1f780e
   ],
   controllers: [AppController],
   providers: [AppService],
