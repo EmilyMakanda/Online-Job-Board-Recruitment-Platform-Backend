@@ -1,5 +1,10 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
-import { Application } from '../../applications/entities/application.entity.js';
+import {
+    Column,
+    CreateDateColumn,
+    Entity,
+    PrimaryGeneratedColumn,
+    UpdateDateColumn,
+} from 'typeorm';
 
 export enum JobStatus {
     OPEN = 'OPEN',
@@ -26,12 +31,8 @@ export class Job{
     @Column({type: 'varchar2', length: 20, default: JobStatus.OPEN,})
     status: JobStatus;
 
-    @ManyToOne(() => User, (user) => user.jobs, {onDelete: 'CASCADE'})
-    @JoinColumn({name: 'posted_by_user_id'})
-    postedBy: User;
-
-    @OneToMany(() => Application, (application) => application.job)
-    applications: Application[];
+    @Column({ name: 'posted_by_user_id', type: 'varchar2', length: 100 })
+    postedByUserId: string;
 
     @CreateDateColumn({type: 'timestamp'})
     createdAt: Date;

@@ -17,12 +17,11 @@ import { ApiTags, ApiParam, ApiResponse, ApiOperation } from '@nestjs/swagger';
 export class JobController {
     constructor(private readonly jobService: JobService) {}
 
-    // Create a job for the specified user.
+    // Create a job and store the supplied poster ID without looking up a user.
     @Post(':userID')
-    @ApiOperation({ summary: 'Create a new job listing for a specific user' })
-    @ApiParam({ name: 'userID', description: 'The ID of the user who is creating the job listing' })
+    @ApiOperation({ summary: 'Create a new job listing for a supplied poster ID' })
+    @ApiParam({ name: 'userID', description: 'The poster ID to store with the job listing' })
     @ApiResponse({ status: 201, description: 'The job listing has been successfully created.' })
-    @ApiResponse({ status: 404, description: 'User not found.' })
     createJob(
         @Body() dto: CreateJobDto,
         @Param('userID') userID: string,
@@ -58,7 +57,7 @@ export class JobController {
         @Param('jobID') jobID: string,
         @Body() dto: UpdateJobDto,
     ) {
-        return this.jobService.updateJob(jobID, dto, { userId: 'user-id', role: 'user' });
+        return this.jobService.updateJob(jobID, dto);
     }
 
     // Delete a job by its ID.
@@ -68,6 +67,6 @@ export class JobController {
     @ApiResponse({ status: 200, description: 'The job listing has been successfully deleted.' })
     @ApiResponse({ status: 404, description: 'Job listing not found.' })
     deleteJob(@Param('jobID') jobID: string) {
-        return this.jobService.deleteJob(jobID, { userId: 'user-id', role: 'user' });
+        return this.jobService.deleteJob(jobID);
     }
 }
