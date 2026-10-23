@@ -1,9 +1,8 @@
+
 import {
+  Body,
   Controller,
   Post,
-  Get,
-  Body,
-  Query,
 } from '@nestjs/common';
 
 import { AuthenticationService } from './authentication.service.js';
@@ -16,23 +15,27 @@ export class AuthenticationController {
     private readonly authenticationService: AuthenticationService,
   ) {}
 
+  // Register a new user
   @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.authenticationService.register(dto);
+  register(@Body() registerDto: RegisterDto) {
+    return this.authenticationService.register(registerDto);
   }
 
-  @Get('verify-email')
-  verifyEmail(@Query('token') token: string) {
+  // Verify the user's email address
+  @Post('verify-email')
+  verifyEmail(@Body('token') token: string) {
     return this.authenticationService.verifyEmail(token);
   }
 
+  // Resend the email verification link
   @Post('resend-verification')
   resendVerification(@Body('email') email: string) {
     return this.authenticationService.resendVerification(email);
   }
 
+  // Log in an existing user
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authenticationService.login(dto);
+  login(@Body() loginDto: LoginDto) {
+    return this.authenticationService.login(loginDto);
   }
 }

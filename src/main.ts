@@ -1,13 +1,38 @@
 
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module.js';
+import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
+import { AppModule, ObserveInstrument } from './app.module.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    ...(process.env.OBSERVE_ENABLED === 'true'
+      ? { instrument: ObserveInstrument }
+      : {}),
+  });
 
   app.enableCors();
 
-  await app.listen(process.env.PORT ?? 3000);
-}
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Online Job Board API')
+    .setDescription('Recruitment platform backend - Group CC6')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+
+  SwaggerModule.setup('docs', app, document);
+
+  await app.listen(Number(process.env.PORT ?? 3000));
+}
 bootstrap();
