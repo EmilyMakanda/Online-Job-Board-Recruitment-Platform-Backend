@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  UpdateDateColumn,
   CreateDateColumn,
 } from 'typeorm';
 
@@ -16,6 +17,18 @@ export class User {
   @Column({ type: 'varchar2', length: 150, unique: true })
   email: string;
 
+  @Column({ type: 'varchar2', length: 20, nullable: true })
+  phone: string | null;
+
+  @Column({type: 'varchar2',length: 255, nullable: true })
+  resumeUrl: string | null;
+
+  @Column({type: 'varchar2', length: 100, nullable: true })
+  location: string | null;
+
+  @Column({type: 'varchar2', length: 1000, nullable: true })
+  skills: string | null;
+
   @Column({
     type: 'varchar2',
     length: 255,
@@ -29,6 +42,12 @@ export class User {
     default: 'job_seeker',
   })
   role: string;
+
+  @Column({
+    type: 'number',
+    nullable: true
+  })
+  companyId: number | null; 
 
   @Column({
     type: 'number',
@@ -51,4 +70,8 @@ export class User {
 
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp' })
+updatedAt: Date;
+
 }
