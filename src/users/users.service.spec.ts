@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ApplicationsController} from './applications.controller.js';
-import { ApplicationsService } from './applications.service.js';
+import { ApplicationsController } from '../applications/applications.controller.js';
+import { ApplicationsService } from '../applications/applications.service.js';
+import { UsersService } from './users.service.js';
 
-describe('ApplicationsService', () => {
-  let service: ApplicationsService;
+
+describe('UsersService', () => {
+  let service: UsersService;
 
   const mockApplicationsService={
     create: jest.fn(),
@@ -17,16 +19,17 @@ describe('ApplicationsService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers:[ApplicationsController],
-      providers: [{
+      providers: [
+        UsersService,
+        {
          provide: ApplicationsService,
          useValue: mockApplicationsService,
     },
   ],
   }).compile();
 
-  service = module.get<ApplicationsService>(
-    ApplicationsService,
-  );
+  service = module.get<UsersService>(UsersService);
+
 });
 
 it('should be defined', () => {
