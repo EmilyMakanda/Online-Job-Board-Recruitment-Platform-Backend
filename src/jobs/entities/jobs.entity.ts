@@ -6,7 +6,8 @@ import {
     UpdateDateColumn,
     ManyToOne,
     JoinColumn,
-    Index
+    Index,
+    type Relation
 } from 'typeorm';
 import { User } from '../../authentication/entities/user.entity.js';
 
@@ -35,10 +36,10 @@ export class Job{
     @Index()
     @Column({type: 'varchar2', length: 20, default: JobStatus.OPEN,})
     status: JobStatus;
-
+    
     @ManyToOne(()=>User, (user) => user.jobs, {onDelete: 'CASCADE'})
     @JoinColumn({ name: 'posted_by_user_id' })
-    postedBy: User;
+    postedBy: Relation<User>;
 
     @CreateDateColumn({type: 'timestamp'})
     createdAt: Date;
