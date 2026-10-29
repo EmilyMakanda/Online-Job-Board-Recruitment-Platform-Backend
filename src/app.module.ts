@@ -15,6 +15,7 @@ import { AppService } from './app.service.js';
 import { AuthenticationModule } from './authentication/authentication.module.js';
 import { JobModule } from './jobs/jobs.module.js';
 import { UsersModule } from './users/users.module.js';
+import { CompanyModule } from './company/company.module.js';
 
 const configModule = ConfigModule.forRoot({
   isGlobal: true,
@@ -94,6 +95,8 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
     AuthenticationModule,
     JobModule,
     UsersModule,
+    CompanyModule,
+    
   ],
   controllers: [AppController],
   providers: [AppService],
