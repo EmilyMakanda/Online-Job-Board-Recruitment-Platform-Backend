@@ -1,12 +1,19 @@
+
 import { NestFactory } from '@nestjs/core';
-import {ValidationPipe} from '@nestjs/common';
-import {DocumentBuilder, SwaggerModule} from '@nestjs/swagger';
+import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
 import { AppModule, ObserveInstrument } from './app.module.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    instrument: ObserveInstrument,
+    ...(process.env.OBSERVE_ENABLED === 'true'
+      ? { instrument: ObserveInstrument }
+      : {}),
   });
+
+  app.enableCors();
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -26,10 +33,5 @@ async function bootstrap() {
   await app.listen(process.env.PORT ?? 3000);
 }
 
-const swaggerConfig = new DocumentBuilder()
-  .setTitle('Job Board API')
-  .setDescription('API documentation for the Job Board application')
-  .setVersion('1.0')
-  .build();
-  
-await bootstrap();
+
+bootstrap();

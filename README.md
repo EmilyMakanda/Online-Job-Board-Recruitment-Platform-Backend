@@ -74,7 +74,9 @@ With Mau, you can deploy your application in just a few clicks, allowing you to 
 
 In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+[NestJS Observe](https://observe.nestjs.com) can instrument the application when explicitly enabled. It is disabled by default so local development does not send telemetry or log authentication/quota errors.
+
+To enable it, set `OBSERVE_ENABLED=true` and provide a valid `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in your environment. These are issued by your NestJS Observe account; never commit them. A `401` means the credentials are invalid for the application associated with the key. A `429` means the account has hit its quota or rate limit; check the account's credits and budget. After fixing credentials or quota, restart the application because credentials are read at startup.
 
 - **Distributed tracing:** Follow requests across services and understand how they flow through your system.
 - **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.

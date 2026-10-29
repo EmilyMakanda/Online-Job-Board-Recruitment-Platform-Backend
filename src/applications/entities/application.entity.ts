@@ -29,6 +29,13 @@ export class Application{
     })
     status: string;
 
+    @Column({
+      name: 'COVER_LETTER',  
+      type: 'varchar2',
+      length: 255,
+      nullable: true,
+    })
+     coverLetter: string;
     @CreateDateColumn({
         name: 'APPLIED_AT',
         type: 'timestamp',
