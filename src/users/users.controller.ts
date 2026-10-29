@@ -10,69 +10,39 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service.js';
-import { CreateJobSeekerDto } from './dto/create-jobseeker.dto.js';
-import { CreateEmployerDto } from './dto/create-employer.dto.js';
-import { UpdateJobSeekerDto } from './dto/update-jobseeker.dto.js';
-import { UpdateEmployerDto } from './dto/update-employer.dto.js';
+import { CreateUserDto } from './dto/create-user.dto.js';
+import { UpdateUserDto } from './dto/update-user.dto.js';
 
 @ApiTags('users')
-@Controller()
+@Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Post('jobseekers')
-  createJobseeker(@Body() dto: CreateJobSeekerDto) {
-    return this.usersService.createJobseeker(dto);
+  @Post()
+  create(@Body() dto: CreateUserDto) {
+    return this.usersService.createUser(dto);
   }
 
-  @Get('jobseekers')
-  findAllJobseekers() {
-    return this.usersService.findAllJobseekers();
+  @Get()
+  findAll() {
+    return this.usersService.findAllUsers();
   }
 
-  @Get('jobseekers/:id')
-  findJobseeker(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.findJobseeker(id);
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.findUser(id);
   }
 
-  @Patch('jobseekers/:id')
-  updateJobseeker(
+  @Patch(':id')
+  update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateJobSeekerDto,
+    @Body() dto: UpdateUserDto,
   ) {
-    return this.usersService.updateJobseeker(id, dto);
+    return this.usersService.updateUser(id, dto);
   }
 
-  @Delete('jobseekers/:id')
-  removeJobseeker(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.removeJobseeker(id);
-  }
-
-  @Post('employers')
-  createEmployer(@Body() dto: CreateEmployerDto) {
-    return this.usersService.createEmployer(dto);
-  }
-
-  @Get('employers')
-  findAllEmployers() {
-    return this.usersService.findAllEmployers();
-  }
-
-  @Get('employers/:id')
-  findEmployer(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.findEmployer(id);
-  }
-
-  @Patch('employers/:id')
-  updateEmployer(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateEmployerDto,
-  ) {
-    return this.usersService.updateEmployer(id, dto);
-  }
-
-  @Delete('employers/:id')
-  removeEmployer(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.removeEmployer(id);
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.removeUser(id);
   }
 }
