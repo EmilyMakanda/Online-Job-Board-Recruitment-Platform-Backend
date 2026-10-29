@@ -7,12 +7,12 @@ import {
   MinLength,
 } from 'class-validator';
 
-export class CreateEmployerDto {
+export class CreateUserDto {
   @ApiProperty({ example: 'christian yambeni' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
-  fullName: string;
+  name: string;
 
   @ApiProperty({ example: 'christian@example.com' })
   @IsEmail()

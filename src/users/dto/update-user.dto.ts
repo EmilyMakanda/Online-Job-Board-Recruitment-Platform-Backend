@@ -1,25 +1,44 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 
 export class UpdateUserDto {
-  @ApiPropertyOptional({
-    description: 'New display name for your account.',
-    example: 'Jordan Makanda',
-    minLength: 1,
-    maxLength: 100,
-  })
+  @ApiPropertyOptional({ example: 'christian yambeni' })
   @IsOptional()
   @IsString()
-  @MinLength(1)
+  @IsNotEmpty()
+  @MaxLength(100)
   name?: string;
 
-  @ApiPropertyOptional({
-    description:
-      'New email address. Changing it resets email verification for the account.',
-    example: 'jordan.makanda@example.com',
-    maxLength: 150,
-  })
+  @ApiPropertyOptional({ example: '+265999123456' })
   @IsOptional()
-  @IsEmail()
-  email?: string;
+  @IsString()
+  @MaxLength(20)
+  @Matches(/^\+?[0-9]{9,15}$/, {
+    message: 'phone must be a valid phone number',
+  })
+  phone?: string;
+
+  @ApiPropertyOptional({ example: 'Lilongwe' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  location?: string;
+
+  @ApiPropertyOptional({ example: 'uploads/cvs/christian-cv.pdf' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  resumeUrl?: string;
+
+  @ApiPropertyOptional({ example: 'NestJS, TypeORM, SQL, C++' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  skills?: string;
 }
