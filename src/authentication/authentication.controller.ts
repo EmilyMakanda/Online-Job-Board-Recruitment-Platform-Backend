@@ -1,7 +1,15 @@
-import { Body, Controller, Post } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiHeader,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { AuthenticationService } from './authentication.service.js';
+import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { VerifyEmailDto } from './dto/verify-email.dto.js';
@@ -70,5 +78,35 @@ export class AuthenticationController {
   })
   login(@Body() loginDto: LoginDto) {
     return this.authenticationService.login(loginDto);
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'Authorization',
+    description: 'JWT access token returned by POST /authentication/login',
+    required: true,
+    example: 'Bearer YOUR_ACCESS_TOKEN',
+  })
+  @ApiOperation({ summary: 'Log out the current user' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Logout successful. The client should discard its access token.',
+    schema: {
+      example: {
+        message: 'Logout successful. Please discard your access token.',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'A valid access token is required.',
+  })
+  logout() {
+    return {
+      message: 'Logout successful. Please discard your access token.',
+    };
   }
 }
