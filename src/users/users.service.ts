@@ -1,127 +1,136 @@
+
 import {
-  ConflictException,
   Injectable,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
-import { Jobseeker } from './entities/jobseeker.entity.js';
-import { Employer } from './entities/employer.entity.js';
-import { CreateJobSeekerDto } from './dto/create-jobseeker.dto.js';
-import { CreateEmployerDto } from './dto/create-employer.dto.js';
-import { UpdateJobSeekerDto } from './dto/update-jobseeker.dto.js';
-import { UpdateEmployerDto } from './dto/update-employer.dto.js';
+import { Repository, Not } from 'typeorm';
+import { User } from '../authentication/entities/user.entity.js';
 
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectRepository(Jobseeker)
-    private readonly jobseekerRepo: Repository<Jobseeker>,
-    @InjectRepository(Employer)
-    private readonly employerRepo: Repository<Employer>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
-  async createJobseeker(dto: CreateJobSeekerDto) {
-    const existing = await this.jobseekerRepo.findOne({
-      where: { email: dto.email },
+  // Get all users
+  async findAll() {
+    return this.userRepository.find({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isEmailVerified: true,
+        createdAt: true,
+      },
     });
-    if (existing) {
-      throw new ConflictException('Email already registered');
-    }
-
-    const { password, dateOfBirth, ...rest } = dto;
-    const jobseeker = this.jobseekerRepo.create({
-      ...rest,
-      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-      passwordHash: await bcrypt.hash(password, 10),
-    });
-
-    const saved = await this.jobseekerRepo.save(jobseeker);
-    return this.jobseekerRepo.findOneByOrFail({ id: saved.id });
   }
 
-  async createEmployer(dto: CreateEmployerDto) {
-    const existing = await this.employerRepo.findOne({
-      where: { email: dto.email },
-    });
-    if (existing) {
-      throw new ConflictException('Email already registered');
-    }
-    const { password, ...rest } = dto;
-    const employer = this.employerRepo.create({
-      ...rest,
-      role: 'employer',
-      passwordHash: await bcrypt.hash(password, 10),
-    });
-
-    const saved = await this.employerRepo.save(employer);
-    return this.employerRepo.findOneByOrFail({ id: saved.id });
-  }
-
+  // Get all job seekers
   async findAllJobseekers() {
-    return this.jobseekerRepo.find();
+    return this.userRepository.find({
+      where: { role: 'job_seeker' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isEmailVerified: true,
+        createdAt: true,
+      },
+    });
   }
 
-  async findJobseeker(id: number) {
-    const jobseeker = await this.jobseekerRepo.findOneBy({ id });
-    if (!jobseeker) {
-      throw new NotFoundException(`Jobseeker with id ${id} not found`);
-    }
-    return jobseeker;
-  }
-
+  // Get all employers
   async findAllEmployers() {
-    return this.employerRepo.find();
+    return this.userRepository.find({
+      where: { role: 'employer' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isEmailVerified: true,
+        createdAt: true,
+      },
+    });
   }
 
-  async findEmployer(id: number) {
-    const employer = await this.employerRepo.findOneBy({ id });
-    if (!employer) {
-      throw new NotFoundException(`Employer with id ${id} not found`);
+  // Get one user by ID
+  async findOne(id: number) {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isEmailVerified: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
     }
-    return employer;
+
+    return user;
   }
 
-  async updateJobseeker(id: number, dto: UpdateJobSeekerDto) {
-    const jobseeker = await this.findJobseeker(id);
+  // Update a user's name or email
+  async update(
+    id: number,
+    data: { name?: string; email?: string },
+  ) {
+    const user = await this.userRepository.findOneBy({ id });
 
-    if (dto.email && dto.email !== jobseeker.email) {
-      const taken = await this.jobseekerRepo.findOneBy({ email: dto.email });
-      if (taken) {
-        throw new ConflictException('Email already registered');
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    if (data.email && data.email !== user.email) {
+      const existingUser = await this.userRepository.findOne({
+        where: { email: data.email },
+      });
+
+      if (existingUser) {
+        throw new ConflictException('Email is already registered');
       }
+
+      user.email = data.email;
+      // Require email verification again after changing email.
+      user.isEmailVerified = 0;
     }
 
-    const { dateOfBirth, ...rest } = dto;
-    Object.assign(jobseeker, rest);
-    if (dateOfBirth) {
-      jobseeker.dateOfBirth = new Date(dateOfBirth);
+    if (data.name !== undefined) {
+      user.name = data.name;
     }
 
-    return this.jobseekerRepo.save(jobseeker);
+    return this.userRepository.save(user).then((saved) => ({
+      id: saved.id,
+      name: saved.name,
+      email: saved.email,
+      role: saved.role,
+      isEmailVerified: saved.isEmailVerified,
+      createdAt: saved.createdAt,
+    }));
   }
 
-  async removeJobseeker(id: number) {
-    const jobseeker = await this.findJobseeker(id);
-    await this.jobseekerRepo.remove(jobseeker);
-  }
+  // Delete a user
+  async remove(id: number) {
+    const user = await this.userRepository.findOneBy({ id });
 
-  async updateEmployer(id: number, dto: UpdateEmployerDto) {
-    const employer = await this.findEmployer(id);
-
-    if (dto.email && dto.email !== employer.email) {
-      const taken = await this.employerRepo.findOneBy({ email: dto.email });
-      if (taken) {
-        throw new ConflictException('Email already registered');
-      }
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
     }
-    Object.assign(employer, dto);
-    return this.employerRepo.save(employer);
-  }
 
-  async removeEmployer(id: number) {
-    const employer = await this.findEmployer(id);
-    await this.employerRepo.remove(employer);
+    await this.userRepository.remove(user);
+
+    return {
+      message: `User with ID ${id} deleted successfully`,
+    };
   }
 }
