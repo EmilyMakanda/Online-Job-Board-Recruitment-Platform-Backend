@@ -1,3 +1,4 @@
+
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -39,6 +40,7 @@ export class User {
   })
   password: string;
 
+  // Differentiates job seekers from employers
   @Column({
     type: 'varchar2',
     length: 20,
@@ -52,10 +54,7 @@ export class User {
   })
   companyId: number | null; 
 
-  @Column({
-    type: 'number',
-    default: 0,
-  })
+  @Column({ type: 'number', default: 0 })
   isEmailVerified: number;
 
   @OneToMany(()=>Job, (job) => job.postedBy)
