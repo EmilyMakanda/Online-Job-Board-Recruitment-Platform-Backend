@@ -4,7 +4,10 @@ import {
   Column,
   UpdateDateColumn,
   CreateDateColumn,
+  OneToMany,
+  type Relation
 } from 'typeorm';
+import { Job } from '../../jobs/entities/jobs.entity.js';
 
 @Entity('users')
 export class User {
@@ -55,6 +58,9 @@ export class User {
   })
   isEmailVerified: number;
 
+  @OneToMany(()=>Job, (job) => job.postedBy)
+  jobs:Relation<Job[]>;
+
   @Column({
     type: 'varchar2',
     length: 64,
@@ -72,6 +78,6 @@ export class User {
   createdAt: Date;
 
   @UpdateDateColumn({ type: 'timestamp' })
-updatedAt: Date;
+  updatedAt: Date;
 
 }

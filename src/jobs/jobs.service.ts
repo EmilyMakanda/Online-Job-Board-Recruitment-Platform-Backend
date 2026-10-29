@@ -4,17 +4,24 @@ import { Repository } from 'typeorm';
 import { CreateJobDto } from './dto/create-job.dto.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
 import { Job } from './entities/jobs.entity.js';
+import { User } from '../authentication/entities/user.entity.js';
 
 @Injectable()
 export class JobService {
   constructor(
     @InjectRepository(Job)
     private readonly jobRepository: Repository<Job>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   // Creates a job listing with the supplied poster ID.
-  async createJob(dto: CreateJobDto, postedByUserId: string) {
-    const job = this.jobRepository.create({ ...dto, postedByUserId });
+  async createJob(dto: CreateJobDto, userId: string) {
+    const user = await this.userRepository.findOne({ where: { id: Number(userId) } });
+    if(!user){
+      throw new NotFoundException('User profile not found');
+    }
+    const job = this.jobRepository.create({ ...dto, postedBy: user, });
     return this.jobRepository.save(job);
   }
 
