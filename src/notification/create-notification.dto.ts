@@ -1,23 +1,28 @@
 
 import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsNumber, IsString } from 'class-validator';
 
 export class CreateNotificationDto {
+
   @ApiProperty({
-    description: 'ID of the user receiving the notification',
     example: 1,
+    description: 'ID of the notification recipient',
   })
+  @IsNumber()
   userId: number;
 
   @ApiProperty({
-    description: 'Notification message',
     example: 'Your job application has been received.',
+    description: 'Notification message',
   })
+  @IsString()
+  @IsNotEmpty()
   message: string;
 
   @ApiProperty({
-    description: 'Email address of the recipient',
-    example: 'user@example.com',
-    required: false,
+    example: 'chancynyirongo929@gmail.com',
+    description: 'Recipient email address',
   })
-  email?: string;
+  @IsEmail()
+  email: string;
 }
