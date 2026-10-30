@@ -3,7 +3,6 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  UpdateDateColumn,
   CreateDateColumn,
   OneToMany,
   type Relation
@@ -75,8 +74,4 @@ export class User {
 
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamp' })
-  updatedAt: Date;
-
 }
