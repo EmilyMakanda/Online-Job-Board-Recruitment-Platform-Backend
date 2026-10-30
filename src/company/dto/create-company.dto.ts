@@ -1,14 +1,5 @@
-
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUrl,
-  Length,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { IsOptional, IsString, IsUrl, Length, MaxLength } from 'class-validator';
 
 export class CreateCompanyDto {
   @ApiProperty({
@@ -37,12 +28,12 @@ export class CreateCompanyDto {
   @MaxLength(255)
   website?: string;
 
-  @ApiProperty({
-    example: 1,
-    description: 'ID of the employer associated with this company',
+  @ApiPropertyOptional({
+    example: 'Lilongwe',
+    description: 'Company location',
   })
-  @IsInt()
-  @Min(1)
-  employerId: number;
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  location?: string;
 }
-

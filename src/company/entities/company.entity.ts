@@ -35,6 +35,13 @@ export class Company {
   })
   website: string | null;
 
+    @Column({
+    type: 'varchar2',
+    length: 100,
+    nullable: true,
+  })
+  location: string | null;
+
   @Column({
     name: 'employer_id',
     type: 'number',

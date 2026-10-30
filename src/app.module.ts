@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { createObserveModule } from '@nestjs/observe';
 
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+
 import { ApplicationsModule } from './applications/applications.module.js';
 import { AuthenticationModule } from './authentication/authentication.module.js';
 import { JobModule } from './jobs/jobs.module.js';
@@ -25,25 +27,22 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+    ConfigModule.forRoot({ isGlobal: true }),
 
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'oracle' as const,
-        host: config.get<string>('DB_HOST'),
-        port: Number(config.get<string>('DB_PORT') ?? 1521),
-        serviceName: config.get<string>('DB_SERVICE_NAME'),
-        username: config.get<string>('DB_USERNAME'),
-        password: config.get<string>('DB_PASSWORD'),
-        autoLoadEntities: true,
-
-        // Enable only in a suitable development database.
-        synchronize:
-          config.get<string>('DB_SYNCHRONIZE') === 'true',
-      }),
+      useFactory: (config: ConfigService) => {
+        return {
+          type: 'oracle' as const,
+          host: config.get<string>('DB_HOST'),
+          port: Number(config.get<string>('DB_PORT') ?? 1521),
+          serviceName: config.get<string>('DB_SERVICE_NAME'),
+          username: config.get<string>('DB_USERNAME'),
+          password: config.get<string>('DB_PASSWORD'),
+          autoLoadEntities: true,
+          synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
+        };
+      },
     }),
 
     ApplicationsModule,
@@ -58,6 +57,7 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
         ]
       : []),
 
+    ApplicationsModule,
     AuthenticationModule,
     JobModule,
     UsersModule,
