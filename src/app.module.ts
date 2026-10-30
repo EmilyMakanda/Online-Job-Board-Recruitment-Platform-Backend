@@ -44,6 +44,17 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
         };
       },
     }),
+    ConfigModule.forRoot({ isGlobal: true}),
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+  console.log('Database config check:', {
+    host: config.get<string>('DB_HOST'),
+  port: config.get<string>('DB_PORT'),
+  serviceName: config.get<string>('DB_SERVICE_NAME'),
+  username: config.get<string>('DB_USERNAME'),
+  hasPassword: Boolean(config.get<string>('DB_PASSWORD')),
+  });
 
     ApplicationsModule,
 
