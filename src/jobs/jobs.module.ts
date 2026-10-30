@@ -7,7 +7,7 @@ import { JobController } from './jobs.controller.js';
 import { JobService } from './jobs.service.js';
 
 @Module({
-  imports: [AuthenticationModule, TypeOrmModule.forFeature([Job])],
+  imports: [TypeOrmModule.forFeature([Job, User])],
   controllers: [JobController],
   providers: [JobService],
 })
