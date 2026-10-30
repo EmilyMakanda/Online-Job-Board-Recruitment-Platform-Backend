@@ -5,11 +5,13 @@ import {
     PrimaryGeneratedColumn,
     UpdateDateColumn,
     ManyToOne,
+    OneToMany,
     JoinColumn,
     Index,
     type Relation
 } from 'typeorm';
 import { User } from '../../authentication/entities/user.entity.js';
+import { Application } from '../../applications/entities/application.entity.js';
 
 export enum JobStatus {
     OPEN = 'OPEN',
@@ -40,6 +42,10 @@ export class Job{
     @ManyToOne(()=>User, (user) => user.jobs, {onDelete: 'CASCADE'})
     @JoinColumn({ name: 'posted_by_user_id' })
     postedBy: Relation<User>;
+
+    @OneToMany(()=>Application, (application) => application.jobs, {onDelete: 'CASCADE'})
+    @JoinColumn({ name: 'applied_by_user_id' })
+    appliedBy: Relation<Application>;
 
     @CreateDateColumn({type: 'timestamp'})
     createdAt: Date;

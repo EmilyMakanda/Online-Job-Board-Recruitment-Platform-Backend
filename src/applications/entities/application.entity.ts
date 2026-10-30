@@ -1,4 +1,5 @@
-import{ Entity,PrimaryGeneratedColumn, Column, CreateDateColumn} from 'typeorm';
+import{ Entity,PrimaryGeneratedColumn, Column, CreateDateColumn, type Relation, ManyToOne} from 'typeorm';
+import { Job } from '../../jobs/entities/jobs.entity.js';
 
 @Entity('Applications')
 export class Application{
@@ -41,4 +42,6 @@ export class Application{
         type: 'timestamp',
     })
     appliedAt: Date
+    @ManyToOne(()=>Job, (job) => job.appliedBy)
+    jobs:Relation<Job[]>;
 }
