@@ -1,21 +1,32 @@
-
 import {
   Injectable,
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, FindOptionsSelect } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from '../authentication/entities/user.entity.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 
+const PUBLIC_USER_FIELDS: FindOptionsSelect<User> = {
+  id: true,
+  name: true,
+  email: true,
+  phone: true,
+  location: true,
+  resumeUrl: true,
+  skills: true,
+  role: true,
+  companyId: true,
+  isEmailVerified: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
 @Injectable()
 export class UsersService {
-  findAll(): any {
-    throw new Error('Method not implemented.');
-  }
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -43,11 +54,14 @@ export class UsersService {
   }
 
   async findAllUsers() {
-    return this.userRepository.find();
+    return this.userRepository.find({ select: PUBLIC_USER_FIELDS });
   }
 
   async findUser(id: number) {
-    const user = await this.userRepository.findOneBy({ id });
+    const user = await this.userRepository.findOne({
+      where: { id },
+      select: PUBLIC_USER_FIELDS,
+    });
     if (!user) {
       throw new NotFoundException(`User with id ${id} not found`);
     }
@@ -70,5 +84,7 @@ export class UsersService {
   async removeUser(id: number) {
     const user = await this.findUser(id);
     await this.userRepository.remove(user);
+
+    return { message: `User with ID ${id} deleted successfully` };
   }
 }

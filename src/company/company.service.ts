@@ -1,9 +1,9 @@
-
 import {
   Injectable,
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -23,17 +23,18 @@ export class CompanyService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
-    const employer = await this.userRepository.findOneBy({
-      id: createCompanyDto.employerId,
-    });
+  async create(
+    employerId: number,
+    createCompanyDto: CreateCompanyDto,
+  ): Promise<Company> {
+    const employer = await this.userRepository.findOneBy({ id: employerId });
 
     if (!employer) {
       throw new BadRequestException('Employer user does not exist');
     }
 
     const existingCompany = await this.companyRepository.findOneBy({
-      employerId: createCompanyDto.employerId,
+      employerId,
     });
 
     if (existingCompany) {
@@ -42,9 +43,17 @@ export class CompanyService {
       );
     }
 
-    const company = this.companyRepository.create(createCompanyDto);
+    const company = this.companyRepository.create({
+      ...createCompanyDto,
+      employerId,
+    });
+    const saved = await this.companyRepository.save(company);
 
-    return this.companyRepository.save(company);
+    await this.userRepository.update(employerId, {
+      companyId: saved.companyId,
+    });
+
+    return saved;
   }
 
   async findAll(): Promise<Company[]> {
@@ -55,9 +64,7 @@ export class CompanyService {
     const company = await this.companyRepository.findOneBy({ companyId });
 
     if (!company) {
-      throw new NotFoundException(
-        `Company with ID ${companyId} was not found`,
-      );
+      throw new NotFoundException(`Company with ID ${companyId} was not found`);
     }
 
     return company;
@@ -65,13 +72,18 @@ export class CompanyService {
 
   async update(
     companyId: number,
+    requesterId: number,
     updateCompanyDto: UpdateCompanyDto,
   ): Promise<Company> {
     const company = await this.findOne(companyId);
-    
+
+    if (company.employerId !== requesterId) {
+      throw new ForbiddenException('You can only edit your own company');
+    }
+
     const updates = Object.fromEntries(
       Object.entries(updateCompanyDto).filter(
-        ([key, value]) => key !== 'employerId' && value !== undefined,
+        ([, value]) => value !== undefined,
       ),
     );
 
@@ -80,9 +92,14 @@ export class CompanyService {
     return this.companyRepository.save(company);
   }
 
-  async remove(companyId: number): Promise<void> {
+  async remove(companyId: number, requesterId: number): Promise<void> {
     const company = await this.findOne(companyId);
 
+    if (company.employerId !== requesterId) {
+      throw new ForbiddenException('You can only delete your own company');
+    }
+
     await this.companyRepository.remove(company);
+    await this.userRepository.update(requesterId, { companyId: null });
   }
 }
