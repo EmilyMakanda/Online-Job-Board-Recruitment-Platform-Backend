@@ -1,9 +1,13 @@
+
 import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  OneToMany,
+  type Relation
 } from 'typeorm';
+import { Job } from '../../jobs/entities/jobs.entity.js';
 
 @Entity('users')
 export class User {
@@ -16,6 +20,18 @@ export class User {
   @Column({ type: 'varchar2', length: 150, unique: true })
   email: string;
 
+  @Column({ type: 'varchar2', length: 20, nullable: true })
+  phone: string | null;
+
+  @Column({type: 'varchar2',length: 255, nullable: true })
+  resumeUrl: string | null;
+
+  @Column({type: 'varchar2', length: 100, nullable: true })
+  location: string | null;
+
+  @Column({type: 'varchar2', length: 1000, nullable: true })
+  skills: string | null;
+
   @Column({
     type: 'varchar2',
     length: 255,
@@ -23,6 +39,7 @@ export class User {
   })
   password: string;
 
+  // Differentiates job seekers from employers
   @Column({
     type: 'varchar2',
     length: 20,
@@ -32,9 +49,15 @@ export class User {
 
   @Column({
     type: 'number',
-    default: 0,
+    nullable: true
   })
+  companyId: number | null; 
+
+  @Column({ type: 'number', default: 0 })
   isEmailVerified: number;
+
+  @OneToMany(()=>Job, (job) => job.postedBy)
+  jobs:Relation<Job[]>;
 
   @Column({
     type: 'varchar2',

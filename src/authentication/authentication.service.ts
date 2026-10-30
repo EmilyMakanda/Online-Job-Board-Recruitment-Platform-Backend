@@ -1,4 +1,3 @@
-
 import {
   Injectable,
   ConflictException,
@@ -39,39 +38,57 @@ export class AuthenticationService {
 
   // Generate a random six-digit OTP, including leading zeros.
   private generateVerificationCode(): string {
-    return randomInt(0, 1_000_000)
-      .toString()
-      .padStart(6, '0');
+    return randomInt(0, 1_000_000).toString().padStart(6, '0');
   }
 
-  // Gmail SMTP using OAuth 2.0.
+  // SMTP credentials are preferred; Gmail OAuth 2.0 remains supported.
   private createEmailTransporter() {
     const user = this.configService.get<string>('SMTP_USER');
+    const password = this.configService.get<string>('SMTP_PASSWORD');
     const clientId = this.configService.get<string>('SMTP_CLIENT_ID');
-    const clientSecret = this.configService.get<string>(
-      'SMTP_CLIENT_SECRET',
-    );
-    const refreshToken = this.configService.get<string>(
-      'SMTP_REFRESH_TOKEN',
-    );
+    const clientSecret = this.configService.get<string>('SMTP_CLIENT_SECRET');
+    const refreshToken = this.configService.get<string>('SMTP_REFRESH_TOKEN');
+    const host = this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com');
+    const port = Number(this.configService.get<string>('SMTP_PORT') ?? 465);
+    const secureSetting = this.configService.get<string>('SMTP_SECURE');
+    const secure =
+      secureSetting === undefined
+        ? port === 465
+        : secureSetting.toLowerCase() === 'true';
 
-    if (!user || !clientId || !clientSecret || !refreshToken) {
+    if (!user) {
       throw new Error(
-        'Gmail OAuth configuration is missing. Check SMTP_USER, SMTP_CLIENT_ID, SMTP_CLIENT_SECRET and SMTP_REFRESH_TOKEN in your .env file.',
+        'SMTP configuration is missing. Set SMTP_USER and SMTP_PASSWORD or configure Gmail OAuth.',
+      );
+    }
+
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error('SMTP_PORT must be a valid port number.');
+    }
+
+    const auth = password
+      ? { user, pass: password }
+      : clientId && clientSecret && refreshToken
+        ? {
+            type: 'OAuth2' as const,
+            user,
+            clientId,
+            clientSecret,
+            refreshToken,
+          }
+        : undefined;
+
+    if (!auth) {
+      throw new Error(
+        'SMTP credentials are incomplete. Set SMTP_PASSWORD or SMTP_CLIENT_ID, SMTP_CLIENT_SECRET and SMTP_REFRESH_TOKEN.',
       );
     }
 
     return nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        type: 'OAuth2',
-        user,
-        clientId,
-        clientSecret,
-        refreshToken,
-      },
+      host,
+      port,
+      secure,
+      auth,
     });
   }
 
@@ -80,9 +97,7 @@ export class AuthenticationService {
     email: string,
     otp: string,
   ): Promise<boolean> {
-    let transporter:
-      | ReturnType<typeof nodemailer.createTransport>
-      | undefined;
+    let transporter: ReturnType<typeof nodemailer.createTransport> | undefined;
 
     try {
       transporter = this.createEmailTransporter();
@@ -117,8 +132,7 @@ export class AuthenticationService {
 
       return true;
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
 
       this.logger.error(`Failed to send verification OTP: ${message}`);
       return false;
@@ -127,22 +141,27 @@ export class AuthenticationService {
     }
   }
 
-  // Register a new user and send an OTP.
+  // Register a new user with the selected role and send an OTP.
   async register(dto: RegisterDto) {
     const name = dto.name?.trim();
     const email = dto.email?.trim().toLowerCase();
     const password = dto.password;
+    const role = dto.role;
 
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !role) {
       throw new BadRequestException(
-        'Name, email and password are required.',
+        'Name, email, password and role are required.',
+      );
+    }
+
+    if (!['job_seeker', 'employer'].includes(role)) {
+      throw new BadRequestException(
+        'Role must be either job_seeker or employer.',
       );
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new BadRequestException(
-        'Please enter a valid email address.',
-      );
+      throw new BadRequestException('Please enter a valid email address.');
     }
 
     if (password.length < 8) {
@@ -167,22 +186,17 @@ export class AuthenticationService {
       name,
       email,
       password: await bcrypt.hash(password, 12),
-      role: 'job_seeker',
+      role,
       isEmailVerified: 0,
       emailVerificationTokenHash: this.hashToken(otp),
-      emailVerificationTokenExpiresAt: new Date(
-        Date.now() + 10 * 60 * 1000,
-      ),
+      emailVerificationTokenExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
 
-    // Save the user in Oracle.
+    // Save the user account in Oracle.
     const savedUser = await this.userRepository.save(user);
 
     // Send the OTP to the registered email address.
-    const emailSent = await this.sendVerificationEmail(
-      savedUser.email,
-      otp,
-    );
+    const emailSent = await this.sendVerificationEmail(savedUser.email, otp);
 
     return {
       message: emailSent
@@ -202,9 +216,7 @@ export class AuthenticationService {
   // Verify the six-digit OTP entered by the user.
   async verifyEmail(otp: string) {
     if (!otp || !/^\d{6}$/.test(otp)) {
-      throw new BadRequestException(
-        'Please enter a valid six-digit OTP.',
-      );
+      throw new BadRequestException('Please enter a valid six-digit OTP.');
     }
 
     const user = await this.userRepository.findOne({
@@ -214,9 +226,7 @@ export class AuthenticationService {
     });
 
     if (!user) {
-      throw new BadRequestException(
-        'Invalid verification code.',
-      );
+      throw new BadRequestException('Invalid verification code.');
     }
 
     if (
@@ -268,10 +278,7 @@ export class AuthenticationService {
 
     await this.userRepository.save(user);
 
-    const emailSent = await this.sendVerificationEmail(
-      user.email,
-      otp,
-    );
+    const emailSent = await this.sendVerificationEmail(user.email, otp);
 
     return {
       message: emailSent
@@ -287,9 +294,7 @@ export class AuthenticationService {
     const password = dto.password;
 
     if (!email || !password) {
-      throw new BadRequestException(
-        'Email and password are required.',
-      );
+      throw new BadRequestException('Email and password are required.');
     }
 
     // Explicitly select the password because the entity excludes it by default.
@@ -300,20 +305,13 @@ export class AuthenticationService {
       .getOne();
 
     if (!user) {
-      throw new UnauthorizedException(
-        'Invalid email or password.',
-      );
+      throw new UnauthorizedException('Invalid email or password.');
     }
 
-    const passwordMatches = await bcrypt.compare(
-      password,
-      user.password,
-    );
+    const passwordMatches = await bcrypt.compare(password, user.password);
 
     if (!passwordMatches) {
-      throw new UnauthorizedException(
-        'Invalid email or password.',
-      );
+      throw new UnauthorizedException('Invalid email or password.');
     }
 
     if (user.isEmailVerified !== 1) {

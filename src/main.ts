@@ -17,18 +17,15 @@ async function bootstrap() {
       transform: true,
     }),
   );
-
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Online Job Board API')
-    .setDescription('Recruitment platform backend - Group CC6')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-
-  SwaggerModule.setup('docs', app, document);
-
-  await app.listen(Number(process.env.PORT ?? 3000));
+   const swaggerConfig = new DocumentBuilder()
+       .setTitle('Online Job Board Api')
+       .setDescription('Recruitment platform backend - Group CC6')
+       .setVersion('1.0')
+       .addBearerAuth()
+       .build();
+   const document = SwaggerModule.createDocument(app, swaggerConfig);
+   SwaggerModule.setup('docs', app, document);
+   
+  await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();
