@@ -20,7 +20,7 @@ const observeAppSecret = process.env.OBSERVE_APP_SECRET;
 
 if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
   throw new Error(
-    'OBSERVE_ENABLED is true, but OBSERVE_APP_KEY or OBSERVE_APP_SECRET is missing',
+    'OBSERVE_ENABLED is true, but OBSERVE_APP_KEY or OBSERVE_APP_SECRET is missing.',
   );
 }
 
@@ -31,24 +31,28 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'oracle' as const,
-        host: config.get<string>('DB_HOST'),
-        port: Number(config.get<string>('DB_PORT') ?? 1521),
-        serviceName: config.get<string>('DB_SERVICE_NAME'),
-        username: config.get<string>('DB_USERNAME'),
-        password: config.get<string>('DB_PASSWORD'),
-        autoLoadEntities: true,
-        synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
-      }),
+      useFactory: (config: ConfigService) => {
+        return {
+          type: 'oracle' as const,
+          host: config.get<string>('DB_HOST'),
+          port: Number(config.get<string>('DB_PORT') ?? 1521),
+          serviceName: config.get<string>('DB_SERVICE_NAME'),
+          username: config.get<string>('DB_USERNAME'),
+          password: config.get<string>('DB_PASSWORD'),
+          autoLoadEntities: true,
+          synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
+        };
+      },
     }),
+
+    ApplicationsModule,
 
     ...(observeEnabled
       ? [
           ObserveModule.forRoot({
-            appKey: observeAppKey as string,
-            appSecret: observeAppSecret as string,
-            serviceId: 'job-board-backend',
+            appKey: observeAppKey!,
+            appSecret: observeAppSecret!,
+            serviceId: 'jo-board-backend',
           }),
         ]
       : []),
