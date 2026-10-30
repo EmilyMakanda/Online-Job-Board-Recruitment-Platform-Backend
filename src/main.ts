@@ -21,17 +21,6 @@ async function bootstrap() {
     }),
   );
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Online Job Board API')
-    .setDescription('Recruitment platform backend - Group CC6')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-
-  SwaggerModule.setup('docs', app, document);
-
-  await app.listen(Number(process.env.PORT ?? 3000));
-}
 bootstrap();
+}
