@@ -1,9 +1,8 @@
-
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { createObserveModule } from '@nestjs/observe';
 import { ConfigModule, ConfigService} from '@nestjs/config';                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
 import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
+import { AppService } from './app.service.js';                                                                                                                                                                                                                                                                                             
 import { ApplicationsModule } from './applications/applications.module.js';
 import { Module } from '@nestjs/common';
 import { AuthenticationModule } from './authentication/authentication.module.js';
@@ -16,12 +15,12 @@ const configModule = ConfigModule.forRoot({
 });
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 const observeEnabled = process.env.OBSERVE_ENABLED === 'true';
-const observeAppKey = process.env.OBSERVE_APP_KEY;
-const observeAppSecret = process.env.OBSERVE_APP_SECRET;
+const observeAppKey = process.env.OBSERVE_APP_KEY || 'YOUR_APP_KEY';
+const observeAppSecret = process.env.OBSERVE_APP_SECRET || 'YOUR_APP_SECRET';
 
-if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
+if(observeAppKey && (!observeAppKey || !observeAppSecret)) {
   throw new Error(
-    'OBSERVE_ENABLED is true, but OBSERVE_APP_KEY or OBSERVE_APP_SECRET is missing.',
+    'OBSERVE_ENABLED is true, but OBSERVE_APP_KEY or OBSERVE_APP_SECRET is missing',
   );
 }
 
@@ -43,6 +42,8 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
         synchronize: false,
       }),
     }),
+  
+
     ConfigModule.forRoot({ isGlobal: true}),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
