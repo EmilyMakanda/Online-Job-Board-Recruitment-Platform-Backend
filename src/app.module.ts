@@ -13,15 +13,10 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { ApplicationsModule } from './applications/applications.module.js';
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { createObserveModule } from '@nestjs/observe';
-
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
 import { AuthenticationModule } from './authentication/authentication.module.js';
 import { JobModule } from './jobs/jobs.module.js';
 import { UsersModule } from './users/users.module.js';
+import { CompanyModule } from './company/company.module.js';
 
 const configModule = ConfigModule.forRoot({
   isGlobal: true,
@@ -94,6 +89,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     AuthenticationModule,
     JobModule,
     UsersModule,
+    CompanyModule,
+    
   ],
   controllers: [AppController],
   providers: [AppService],

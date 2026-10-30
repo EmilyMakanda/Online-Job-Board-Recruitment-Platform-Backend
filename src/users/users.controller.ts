@@ -2,13 +2,25 @@ import {
   Body,
   Controller,
   Delete,
+  Post,
   Get,
   Param,
   ParseIntPipe,
   Patch,
-  Post,
+  ForbiddenException,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { Request } from 'express';
+
 import { UsersService } from './users.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';

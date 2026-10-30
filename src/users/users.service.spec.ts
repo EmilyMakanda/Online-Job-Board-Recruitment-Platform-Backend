@@ -17,6 +17,7 @@ describe('UsersService', () => {
   };
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers:[ApplicationsController],
       providers: [
