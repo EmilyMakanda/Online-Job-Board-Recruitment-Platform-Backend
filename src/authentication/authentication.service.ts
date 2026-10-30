@@ -1,4 +1,3 @@
-
 import {
   Injectable,
   ConflictException,
@@ -127,15 +126,22 @@ export class AuthenticationService {
     }
   }
 
-  // Register a new user and send an OTP.
+  // Register a new user with the selected role and send an OTP.
   async register(dto: RegisterDto) {
     const name = dto.name?.trim();
     const email = dto.email?.trim().toLowerCase();
     const password = dto.password;
+    const role = dto.role;
 
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !role) {
       throw new BadRequestException(
-        'Name, email and password are required.',
+        'Name, email, password and role are required.',
+      );
+    }
+
+    if (!['job_seeker', 'employer'].includes(role)) {
+      throw new BadRequestException(
+        'Role must be either job_seeker or employer.',
       );
     }
 
@@ -167,7 +173,7 @@ export class AuthenticationService {
       name,
       email,
       password: await bcrypt.hash(password, 12),
-      role: 'job_seeker',
+      role,
       isEmailVerified: 0,
       emailVerificationTokenHash: this.hashToken(otp),
       emailVerificationTokenExpiresAt: new Date(
@@ -175,7 +181,7 @@ export class AuthenticationService {
       ),
     });
 
-    // Save the user in Oracle.
+    // Save the user account in Oracle.
     const savedUser = await this.userRepository.save(user);
 
     // Send the OTP to the registered email address.

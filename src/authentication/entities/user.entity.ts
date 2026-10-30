@@ -1,3 +1,4 @@
+
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -32,19 +33,16 @@ export class User {
   @Column({type: 'varchar2', length: 1000, nullable: true })
   skills: string | null;
 
-  @Column({
-    type: 'varchar2',
-    length: 255,
-    select: false,
-  })
+  @Column({ type: 'varchar2', length: 255, select: false })
   password: string;
 
+  // Differentiates job seekers from employers
   @Column({
-    type: 'varchar2',
-    length: 20,
-    default: 'job_seeker',
-  })
-  role: string;
+  type: 'varchar2',
+  length: 20,
+  default: 'job_seeker',
+})
+role: 'job_seeker' | 'employer';
 
   @Column({
     type: 'number',
@@ -81,3 +79,4 @@ export class User {
   updatedAt: Date;
 
 }
+
