@@ -1,3 +1,9 @@
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { createObserveModule } from '@nestjs/observe';
+
+import { AppController } from './app.controller.js';
+import { AppService } from './app.service.js';
 import { Module } from '@nestjs/common';
 import { AuthenticationModule } from './authentication/authentication.module.js';
 import { JobModule } from './jobs/jobs.module.js';
