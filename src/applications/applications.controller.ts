@@ -1,9 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete,ParseIntPipe, } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Patch, Param, Delete,ParseIntPipe,UseGuards, } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam,ApiResponse } from '@nestjs/swagger';
 import { ApplicationsService } from './applications.service.js';
 import { CreateApplicationDto } from './dto/create-application.dto.js';
 import { UpdateApplicationDto } from './dto/update-application.dto.js';
 import { Application } from './entities/application.entity.js';
+import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
+import { RolesGuard } from '../authentication/guards/roles.guards.js';
+import { Roles } from '../authentication/roles.decorator.js';
+
+
 
 
 @ApiTags('Applications')
@@ -11,7 +16,10 @@ import { Application } from './entities/application.entity.js';
 export class ApplicationsController {
   constructor(private readonly applicationsService: ApplicationsService) {}
 
-  @Post()
+  @Post(':userID')
+  @ApiBearerAuth()
+  @Roles('employer')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({ summary: 'Submit a ajob application'})
   create(
     @Body() createApplicationDto: CreateApplicationDto,

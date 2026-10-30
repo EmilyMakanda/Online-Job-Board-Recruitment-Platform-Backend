@@ -19,7 +19,7 @@ export class Application{
         name: 'JOB_ID',
         type: 'number',
     })
-    jobId: number;
+    id: string;
 
     @Column({
         name: 'STATUS',

@@ -6,7 +6,7 @@ export class CreateApplicationDto {
     @ApiProperty({ description:'The ID of the job being applied for', example:1})
     @IsInt()
     @Min(1)
-    jobId: number;
+    id: string;
 
     @ApiProperty({ description:'The cover letter for the application', example:'I am a highly motivated candidate...' })
     @IsOptional()
