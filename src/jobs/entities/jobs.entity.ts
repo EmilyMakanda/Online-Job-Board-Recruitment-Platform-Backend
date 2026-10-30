@@ -43,9 +43,8 @@ export class Job{
     @JoinColumn({ name: 'posted_by_user_id' })
     postedBy: Relation<User>;
 
-    @OneToMany(()=>Application, (application) => application.jobs, {onDelete: 'CASCADE'})
-    @JoinColumn({ name: 'applied_by_user_id' })
-    appliedBy: Relation<Application>;
+    @OneToMany(() => Application, (application) => application.job)
+    applications: Relation<Application[]>;
 
     @CreateDateColumn({type: 'timestamp'})
     createdAt: Date;
