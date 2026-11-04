@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateJobDto } from './dto/create-job.dto.js';
@@ -15,29 +19,51 @@ export class JobService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  // Creates a job listing with the supplied poster ID.
-  async createJob(dto: CreateJobDto, userId: string) {
-    const user = await this.userRepository.findOne({ where: { id: Number(userId) } });
-    if(!user){
+  // Creates a job listing for the authenticated employer.
+  async createJob(dto: CreateJobDto, userId: number) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
       throw new NotFoundException('User profile not found');
     }
-    const job = this.jobRepository.create({ ...dto, postedBy: user, });
+    const job = this.jobRepository.create({ ...dto, postedBy: user });
     return this.jobRepository.save(job);
   }
 
   // Updates the supplied fields for a listing.
-  async updateJob(jobId: string, dto: UpdateJobDto) {
-    const job = await this.getOneJob(jobId);
+  async updateJob(jobId: string, dto: UpdateJobDto, employerId: number) {
+    const job = await this.getOneJobForEmployer(jobId, employerId);
 
     Object.assign(job, dto);
     return this.jobRepository.save(job);
   }
 
-  // Returns all listings, newest first.
+  // Returns all listings, newest first, for jobseekers.
   getAllJobs() {
     return this.jobRepository.find({
       order: { createdAt: 'DESC' },
     });
+  }
+
+  getJobsByEmployer(employerId: number) {
+    return this.jobRepository.find({
+      where: { postedBy: { id: employerId } },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  searchJobsByName(name: string) {
+    const normalizedName = name?.trim();
+    if (!normalizedName) {
+      throw new BadRequestException('A job name is required for searching.');
+    }
+
+    return this.jobRepository
+      .createQueryBuilder('job')
+      .where('LOWER(job.title) LIKE LOWER(:title)', {
+        title: `%${normalizedName}%`,
+      })
+      .orderBy('job.createdAt', 'DESC')
+      .getMany();
   }
 
   // Finds a listing by ID.
@@ -51,9 +77,21 @@ export class JobService {
     return job;
   }
 
+  async getOneJobForEmployer(id: string, employerId: number) {
+    const job = await this.jobRepository.findOne({
+      where: { id, postedBy: { id: employerId } },
+    });
+
+    if (!job) {
+      throw new NotFoundException(`Job listing with ID "${id}" not found`);
+    }
+
+    return job;
+  }
+
   // Deletes a listing by ID.
-  async deleteJob(id: string) {
-    const job = await this.getOneJob(id);
+  async deleteJob(id: string, employerId: number) {
+    const job = await this.getOneJobForEmployer(id, employerId);
 
     await this.jobRepository.remove(job);
     return { message: `Job "${job.title}" successfully deleted` };
