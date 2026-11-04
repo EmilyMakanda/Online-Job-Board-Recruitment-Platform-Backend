@@ -3,7 +3,10 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  ManyToOne,
+  JoinColumn, 
 } from 'typeorm';
+import { Company } from '../../company/entities/company.entity.js';
 
 @Entity('users')
 export class User {
@@ -48,7 +51,18 @@ export class User {
     nullable: true,
   })
   emailVerificationTokenExpiresAt: Date | null;
+  @Column({
+  name: 'IS_ACTIVE',
+  type: 'number',
+  default: 1,
+})
+@Column({ name: 'COMPANY_ID', type: 'number', nullable: true })
+  companyId: number | null;
 
+@ManyToOne(() => Company, { onDelete: 'SET NULL', nullable: true })
+@JoinColumn({ name: 'COMPANY_ID' })
+company: Company | null;
+isActive: number;
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;
 }
