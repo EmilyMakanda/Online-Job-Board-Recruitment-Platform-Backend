@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
-import { UserRole } from '../roles.decorator.js';
+import { UserRole } from '../role.decorator.js';
 
 interface JwtPayload {
   sub: number;
