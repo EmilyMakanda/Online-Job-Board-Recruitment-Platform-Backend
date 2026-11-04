@@ -6,8 +6,11 @@ import {
   Param,
   Patch,
   Post,
+  Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { JobService } from './jobs.service.js';
 import { CreateJobDto } from './dto/create-job.dto.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
@@ -22,24 +25,24 @@ import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../authentication/guards/roles.guards.js';
 import { Roles } from '../authentication/roles.decorator.js';
 
+interface AuthenticatedRequest extends Request {
+  user: {
+    sub: number;
+    role: 'job_seeker' | 'employer';
+  };
+}
+
 @ApiTags('Jobs')
 @Controller('job')
 export class JobController {
   constructor(private readonly jobService: JobService) {}
 
-  // Create a job and store the supplied poster ID without looking up a user.
-  @Post(':userID')
+  @Post()
   @ApiBearerAuth()
   @Roles('employer')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({
-    summary: 'Create a new job listing for a supplied poster ID',
-  })
-  @ApiParam({
-    name: 'userID',
-    type: Number,
-    description: 'Employer account ID posting the job',
-    example: 42,
+    summary: 'Create a job listing for the authenticated employer',
   })
   @ApiResponse({
     status: 201,
@@ -53,12 +56,32 @@ export class JobController {
     status: 403,
     description: 'Only employers can create job listings.',
   })
-  createJob(@Body() dto: CreateJobDto, @Param('userID') userID: string) {
-    return this.jobService.createJob(dto, userID);
+  createJob(@Body() dto: CreateJobDto, @Req() req: AuthenticatedRequest) {
+    return this.jobService.createJob(dto, req.user.sub);
   }
 
-  // Return all jobs.
+  @Get('my-jobs')
+  @ApiBearerAuth()
+  @Roles('employer')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiOperation({ summary: 'List jobs posted by the authenticated employer' })
+  getMyJobs(@Req() req: AuthenticatedRequest) {
+    return this.jobService.getJobsByEmployer(req.user.sub);
+  }
+
+  @Get('search')
+  @ApiBearerAuth()
+  @Roles('job_seeker')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiOperation({ summary: 'Search job listings by title' })
+  searchJobs(@Query('name') name: string) {
+    return this.jobService.searchJobsByName(name);
+  }
+
   @Get()
+  @ApiBearerAuth()
+  @Roles('job_seeker')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({ summary: 'Retrieve all job listings' })
   @ApiResponse({ status: 200, description: 'A list of all job listings.' })
   getAllJobs() {
@@ -67,16 +90,21 @@ export class JobController {
 
   // Return one job by its ID.
   @Get(':jobID')
+  @ApiBearerAuth()
+  @Roles('employer', 'job_seeker')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({ summary: 'Retrieve a specific job listing by its ID' })
   @ApiParam({
     name: 'jobID',
     description: 'The ID of the job listing to retrieve',
-    example: 'JOB-1001',
+    example: '42f83d15-c798-4a46-9e83-d0fdb60a5e15',
   })
   @ApiResponse({ status: 200, description: 'The requested job listing.' })
   @ApiResponse({ status: 404, description: 'Job listing not found.' })
-  getOneJob(@Param('jobID') jobID: string) {
-    return this.jobService.getOneJob(jobID);
+  getOneJob(@Param('jobID') jobID: string, @Req() req: AuthenticatedRequest) {
+    return req.user.role === 'employer'
+      ? this.jobService.getOneJobForEmployer(jobID, req.user.sub)
+      : this.jobService.getOneJob(jobID);
   }
 
   // Update the supplied fields for a job.
@@ -88,7 +116,7 @@ export class JobController {
   @ApiParam({
     name: 'jobID',
     description: 'The ID of the job listing to update',
-    example: 'JOB-1001',
+    example: '42f83d15-c798-4a46-9e83-d0fdb60a5e15',
   })
   @ApiResponse({ status: 200, description: 'The updated job listing.' })
   @ApiResponse({
@@ -100,8 +128,12 @@ export class JobController {
     description: 'Only employers can update job listings.',
   })
   @ApiResponse({ status: 404, description: 'Job listing not found.' })
-  updateJob(@Param('jobID') jobID: string, @Body() dto: UpdateJobDto) {
-    return this.jobService.updateJob(jobID, dto);
+  updateJob(
+    @Param('jobID') jobID: string,
+    @Body() dto: UpdateJobDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.jobService.updateJob(jobID, dto, req.user.sub);
   }
 
   // Delete a job by its ID.
@@ -113,7 +145,7 @@ export class JobController {
   @ApiParam({
     name: 'jobID',
     description: 'The ID of the job listing to delete',
-    example: 'JOB-1001',
+    example: '42f83d15-c798-4a46-9e83-d0fdb60a5e15',
   })
   @ApiResponse({
     status: 200,
@@ -128,7 +160,7 @@ export class JobController {
     description: 'Only employers can delete job listings.',
   })
   @ApiResponse({ status: 404, description: 'Job listing not found.' })
-  deleteJob(@Param('jobID') jobID: string) {
-    return this.jobService.deleteJob(jobID);
+  deleteJob(@Param('jobID') jobID: string, @Req() req: AuthenticatedRequest) {
+    return this.jobService.deleteJob(jobID, req.user.sub);
   }
 }
