@@ -2,77 +2,133 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
   Patch,
-  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { Request } from 'express';
+
 import { UsersService } from './users.service.js';
-import { CreateJobSeekerDto } from './dto/create-jobseeker.dto.js';
-import { CreateEmployerDto } from './dto/create-employer.dto.js';
-import { UpdateJobSeekerDto } from './dto/update-jobseeker.dto.js';
-import { UpdateEmployerDto } from './dto/update-employer.dto.js';
+import { UpdateUserDto } from './dto/update-user.dto.js';
+import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
+import { RolesGuard } from '../authentication/guards/roles.guards.js';
+import { Roles, UserRole } from '../authentication/roles.decorator.js';
+
+interface AuthenticatedRequest extends Request {
+  user: {
+    sub: number;
+    email: string;
+    role: UserRole;
+  };
+}
+
+const USER_EXAMPLE = {
+  id: 21,
+  name: 'Jordan Makanda',
+  email: 'jordan@example.com',
+  phone: '+265999123456',
+  location: 'Lilongwe',
+  resumeUrl: 'uploads/cvs/jordan-cv.pdf',
+  skills: 'NestJS, TypeORM, SQL',
+  role: 'job_seeker',
+  isEmailVerified: 1,
+  createdAt: '2026-01-15T10:30:00.000Z',
+};
 
 @ApiTags('users')
-@Controller()
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Post('jobseekers')
-  createJobseeker(@Body() dto: CreateJobSeekerDto) {
-    return this.usersService.createJobseeker(dto);
+  @Get()
+  @Roles('employer')
+  @ApiOperation({ summary: 'Get all users (employers only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'User records, excluding password hashes.',
+    schema: { example: [USER_EXAMPLE] },
+  })
+  @ApiResponse({ status: 401, description: 'A valid access token is required.' })
+  @ApiResponse({ status: 403, description: 'Only employers can list all users.' })
+  findAll() {
+    return this.usersService.findAllUsers();
   }
 
-  @Get('jobseekers')
-  findAllJobseekers() {
-    return this.usersService.findAllJobseekers();
-  }
-
-  @Get('jobseekers/:id')
-  findJobseeker(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.findJobseeker(id);
-  }
-
-  @Patch('jobseekers/:id')
-  updateJobseeker(
+  @Get(':id')
+  @ApiOperation({ summary: 'Get your account by ID' })
+  @ApiParam({ name: 'id', type: Number, description: 'Your account ID', example: 21 })
+  @ApiResponse({
+    status: 200,
+    description: 'Account details, excluding password hashes.',
+    schema: { example: USER_EXAMPLE },
+  })
+  @ApiResponse({ status: 401, description: 'A valid access token is required.' })
+  @ApiResponse({ status: 403, description: 'You can only view your own profile.' })
+  @ApiResponse({ status: 404, description: 'Account not found.' })
+  findOne(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateJobSeekerDto,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.usersService.updateJobseeker(id, dto);
+    if (req.user.sub !== id) {
+      throw new ForbiddenException('You can only view your own profile.');
+    }
+
+    return this.usersService.findUser(id);
   }
 
-  @Delete('jobseekers/:id')
-  removeJobseeker(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.removeJobseeker(id);
-  }
-
-  @Post('employers')
-  createEmployer(@Body() dto: CreateEmployerDto) {
-    return this.usersService.createEmployer(dto);
-  }
-
-  @Get('employers')
-  findAllEmployers() {
-    return this.usersService.findAllEmployers();
-  }
-
-  @Get('employers/:id')
-  findEmployer(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.findEmployer(id);
-  }
-
-  @Patch('employers/:id')
-  updateEmployer(
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update your profile' })
+  @ApiParam({ name: 'id', type: Number, description: 'Your account ID', example: 21 })
+  @ApiBody({ type: UpdateUserDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Updated account details.',
+    schema: { example: USER_EXAMPLE },
+  })
+  @ApiResponse({ status: 401, description: 'A valid access token is required.' })
+  @ApiResponse({ status: 403, description: 'You can only update your own profile.' })
+  @ApiResponse({ status: 404, description: 'Account not found.' })
+  update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateEmployerDto,
+    @Body() data: UpdateUserDto,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.usersService.updateEmployer(id, dto);
+    if (req.user.sub !== id) {
+      throw new ForbiddenException('You can only update your own profile.');
+    }
+
+    return this.usersService.updateUser(id, data);
   }
 
-  @Delete('employers/:id')
-  removeEmployer(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.removeEmployer(id);
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete your account' })
+  @ApiParam({ name: 'id', type: Number, description: 'Your account ID', example: 21 })
+  @ApiResponse({ status: 200, description: 'Account deleted successfully.' })
+  @ApiResponse({ status: 401, description: 'A valid access token is required.' })
+  @ApiResponse({ status: 403, description: 'You can only delete your own account.' })
+  @ApiResponse({ status: 404, description: 'Account not found.' })
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (req.user.sub !== id) {
+      throw new ForbiddenException('You can only delete your own account.');
+    }
+
+    return this.usersService.removeUser(id);
   }
 }
