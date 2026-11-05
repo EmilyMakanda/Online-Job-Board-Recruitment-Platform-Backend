@@ -1,13 +1,16 @@
-
 import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  UpdateDateColumn,
   ManyToOne,
-  JoinColumn, 
+  JoinColumn,
+  OneToMany,
+  type Relation,
 } from 'typeorm';
 import { Company } from '../../company/entities/company.entity.js';
+import { Job } from '../../jobs/entities/jobs.entity.js';
 
 @Entity('users')
 export class User {
@@ -23,13 +26,13 @@ export class User {
   @Column({ type: 'varchar2', length: 20, nullable: true })
   phone: string | null;
 
-  @Column({type: 'varchar2',length: 255, nullable: true })
+  @Column({ type: 'varchar2', length: 255, nullable: true })
   resumeUrl: string | null;
 
-  @Column({type: 'varchar2', length: 100, nullable: true })
+  @Column({ type: 'varchar2', length: 100, nullable: true })
   location: string | null;
 
-  @Column({type: 'varchar2', length: 1000, nullable: true })
+  @Column({ type: 'varchar2', length: 1000, nullable: true })
   skills: string | null;
 
   @Column({
@@ -47,17 +50,30 @@ export class User {
   })
   role: string;
 
+  // Same database column as the company relation below (COMPANY_ID)
   @Column({
+    name: 'COMPANY_ID',
     type: 'number',
-    nullable: true
+    nullable: true,
   })
-  companyId: number | null; 
+  companyId: number | null;
+
+  @ManyToOne(() => Company, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'COMPANY_ID' })
+  company: Relation<Company> | null;
 
   @Column({ type: 'number', default: 0 })
   isEmailVerified: number;
 
-  @OneToMany(()=>Job, (job) => job.postedBy)
-  jobs:Relation<Job[]>;
+  @Column({
+    name: 'IS_ACTIVE',
+    type: 'number',
+    default: 1,
+  })
+  isActive: number;
+
+  @OneToMany(() => Job, (job) => job.postedBy)
+  jobs: Relation<Job[]>;
 
   @Column({
     type: 'varchar2',
@@ -71,18 +87,10 @@ export class User {
     nullable: true,
   })
   emailVerificationTokenExpiresAt: Date | null;
-  @Column({
-  name: 'IS_ACTIVE',
-  type: 'number',
-  default: 1,
-})
-@Column({ name: 'COMPANY_ID', type: 'number', nullable: true })
-  companyId: number | null;
 
-@ManyToOne(() => Company, { onDelete: 'SET NULL', nullable: true })
-@JoinColumn({ name: 'COMPANY_ID' })
-company: Company | null;
-isActive: number;
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp' })
+  updatedAt: Date;
 }
