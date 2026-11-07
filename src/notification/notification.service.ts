@@ -1,55 +1,63 @@
 
 import {
   Injectable,
-  NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+
 import { Notification } from './notification.entity.js';
 import { CreateNotificationDto } from './create-notification.dto.js';
 import { EmailService } from '../email/email.service.js';
+import { NotFoundException } from '@nestjs/common';
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
+
     private readonly emailService: EmailService,
   ) {}
 
   async create(dto: CreateNotificationDto) {
-    const email = dto.email ?? 'chancynyirongo929@gmail.com';
-
-    // Save the notification in Oracle first.
+    // Save notification in Oracle.
     const notification = this.notificationRepository.create({
       userId: dto.userId,
       message: dto.message,
-      email,
+      email: dto.email,
       isRead: 0,
     });
 
     const savedNotification =
       await this.notificationRepository.save(notification);
 
-    // Try sending the email without losing the saved notification.
+    // Send email to the supplied recipient.
     try {
       const emailResult =
         await this.emailService.sendNotificationEmail(
-          email,
+          dto.email,
           'Job Board Notification',
           dto.message,
         );
 
       return {
         notification: savedNotification,
-        emailStatus: 'test_email_created',
-       
+        emailStatus: 'accepted',
+        messageId: emailResult?.messageId,
       };
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        `Notification ${savedNotification.ID} saved, but email sending failed.`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
       return {
         notification: savedNotification,
         emailStatus: 'failed',
-        message: 'Notification saved, but test email could not be created.',
+        message: 'Notification saved, but email sending failed.',
       };
     }
   }
@@ -70,7 +78,7 @@ export class NotificationsService {
 
   async markAsRead(id: number, userId: number) {
     const notification = await this.notificationRepository.findOneBy({
-    
+      ID: id,
       userId,
     });
 
