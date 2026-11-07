@@ -1,17 +1,18 @@
 import {
-    Column,
-    CreateDateColumn,
-    Entity,
-    PrimaryGeneratedColumn,
-    UpdateDateColumn,
-    ManyToOne,
-    OneToMany,
-    JoinColumn,
-    Index,
-    type Relation
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+  Index,
+  type Relation,
 } from 'typeorm';
 import { User } from '../../authentication/entities/user.entity.js';
 import { Application } from '../../applications/entities/application.entity.js';
+import { Company } from '../../company/entities/company.entity.js';
 
 export enum JobStatus {
     OPEN = 'OPEN',
@@ -20,35 +21,37 @@ export enum JobStatus {
 }
 
 @Entity('jobs')
-export class Job{
-    // Fields for the Job entity
+export class Job {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-    @PrimaryGeneratedColumn('uuid')
-    id: string;
+  @Column({ type: 'varchar', length: 150, nullable: false })
+  title: string;
 
-    @Column({type: 'varchar', length: 150, nullable: false})
-    title: string;
+  @Column({ type: 'varchar', length: 2000, nullable: false })
+  description: string;
 
-    @Column({type: 'varchar', length: 2000, nullable: false})
-    description: string;
+  @Column({ type: 'varchar2', length: 100, nullable: false })
+  location: string;
 
-    @Column({type: 'varchar2', length: 100, nullable: false})
-    location: string;
+  @Index()
+  @Column({ type: 'varchar2', length: 20, default: JobStatus.OPEN })
+  status: JobStatus;
 
-    @Index()
-    @Column({type: 'varchar2', length: 20, default: JobStatus.OPEN,})
-    status: JobStatus;
-    
-    @ManyToOne(()=>User, (user) => user.jobs, {onDelete: 'CASCADE'})
-    @JoinColumn({ name: 'posted_by_user_id' })
-    postedBy: Relation<User>;
+  @ManyToOne(() => User, (user) => user.jobs, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'posted_by_user_id' })
+  postedBy: Relation<User>;
 
-    @OneToMany(() => Application, (application) => application.job)
-    applications: Relation<Application[]>;
+  @ManyToOne(() => Company, { nullable: false })
+  @JoinColumn({ name: 'company_id', referencedColumnName: 'companyId' })
+  company: Relation<Company>;
 
-    @CreateDateColumn({type: 'timestamp'})
-    createdAt: Date;
-    
-    @UpdateDateColumn({type: 'timestamp'})
-    updatedAt: Date;
+  @OneToMany(() => Application, (application) => application.job)
+  applications: Relation<Application[]>;
+
+  @CreateDateColumn({ type: 'timestamp' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp' })
+  updatedAt: Date;
 }

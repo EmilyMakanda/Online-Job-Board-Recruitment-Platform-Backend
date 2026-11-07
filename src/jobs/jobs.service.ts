@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,7 +9,9 @@ import { Repository } from 'typeorm';
 import { CreateJobDto } from './dto/create-job.dto.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
 import { Job } from './entities/jobs.entity.js';
+import { JobStatus } from './entities/jobs.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
+import { Company } from '../company/entities/company.entity.js';
 
 @Injectable()
 export class JobService {
@@ -17,6 +20,8 @@ export class JobService {
     private readonly jobRepository: Repository<Job>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Company)
+    private readonly companyRepository: Repository<Company>,
   ) {}
 
   // Creates a job listing for the authenticated employer.
@@ -25,7 +30,21 @@ export class JobService {
     if (!user) {
       throw new NotFoundException('User profile not found');
     }
-    const job = this.jobRepository.create({ ...dto, postedBy: user });
+    const company = await this.companyRepository.findOneBy({
+      employerId: userId,
+    });
+    if (!company) {
+      throw new ForbiddenException(
+        'An employer must have an associated company before creating a job.',
+      );
+    }
+
+    const job = this.jobRepository.create({
+      ...dto,
+      status: JobStatus.DRAFT,
+      postedBy: user,
+      company,
+    });
     return this.jobRepository.save(job);
   }
 
@@ -37,16 +56,35 @@ export class JobService {
     return this.jobRepository.save(job);
   }
 
+  async publishJob(jobId: string, employerId: number) {
+    const job = await this.getOneJobForEmployer(jobId, employerId);
+    if (job.status === JobStatus.CLOSED) {
+      throw new BadRequestException('A closed job cannot be published again.');
+    }
+
+    job.status = JobStatus.OPEN;
+    return this.jobRepository.save(job);
+  }
+
+  async closeJob(jobId: string, employerId: number) {
+    const job = await this.getOneJobForEmployer(jobId, employerId);
+    job.status = JobStatus.CLOSED;
+    return this.jobRepository.save(job);
+  }
+
   // Returns all listings, newest first, for jobseekers.
   getAllJobs() {
     return this.jobRepository.find({
+      where: { status: JobStatus.OPEN },
+      relations: { company: true },
       order: { createdAt: 'DESC' },
     });
   }
 
   getJobsByEmployer(employerId: number) {
     return this.jobRepository.find({
-      where: { postedBy: { id: employerId } },
+      where: { company: { employerId } },
+      relations: { company: true },
       order: { createdAt: 'DESC' },
     });
   }
@@ -59,16 +97,22 @@ export class JobService {
 
     return this.jobRepository
       .createQueryBuilder('job')
-      .where('LOWER(job.title) LIKE LOWER(:title)', {
-        title: `%${normalizedName}%`,
-      })
+      .leftJoinAndSelect('job.company', 'company')
+      .where('job.status = :status', { status: JobStatus.OPEN })
+      .andWhere(
+        '(LOWER(job.title) LIKE LOWER(:term) OR LOWER(job.description) LIKE LOWER(:term) OR LOWER(job.location) LIKE LOWER(:term))',
+        { term: `%${normalizedName}%` },
+      )
       .orderBy('job.createdAt', 'DESC')
       .getMany();
   }
 
-  // Finds a listing by ID.
+  // Job seekers and the application flow can only retrieve available listings.
   async getOneJob(id: string) {
-    const job = await this.jobRepository.findOne({ where: { id } });
+    const job = await this.jobRepository.findOne({
+      where: { id, status: JobStatus.OPEN },
+      relations: { company: true },
+    });
 
     if (!job) {
       throw new NotFoundException(`Job listing with ID "${id}" not found`);
@@ -79,7 +123,8 @@ export class JobService {
 
   async getOneJobForEmployer(id: string, employerId: number) {
     const job = await this.jobRepository.findOne({
-      where: { id, postedBy: { id: employerId } },
+      where: { id, company: { employerId } },
+      relations: { company: true },
     });
 
     if (!job) {
