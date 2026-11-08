@@ -51,7 +51,7 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
           username: config.get<string>('DB_USERNAME'),
           password: config.get<string>('DB_PASSWORD'),
           autoLoadEntities: true,
-          synchronize: false,
+          synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
         };
       },
     }),
