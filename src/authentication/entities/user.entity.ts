@@ -8,6 +8,7 @@ import {
   type Relation
 } from 'typeorm';
 import { Job } from '../../jobs/entities/jobs.entity.js';
+import type { UserRole } from '../roles.decorator.js';
 
 @Entity('users')
 export class User {
@@ -45,7 +46,7 @@ export class User {
     length: 20,
     default: 'job_seeker',
   })
-  role: string;
+  role: UserRole;
 
   @Column({
     type: 'number',
@@ -55,6 +56,13 @@ export class User {
 
   @Column({ type: 'number', default: 0 })
   isEmailVerified: number;
+
+  @Column({
+    name: 'is_active',
+    type: 'number',
+    default: 1,
+  })
+  isActive: number;
 
   @OneToMany(()=>Job, (job) => job.postedBy)
   jobs:Relation<Job[]>;

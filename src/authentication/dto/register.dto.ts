@@ -34,10 +34,10 @@ export class RegisterDto {
 
   @ApiProperty({
     description: 'The role of the user',
-    enum: ['job_seeker', 'employer'],
+    enum: ['job_seeker', 'employer','admin'],
     example: 'job_seeker',
   })
   @IsString()
-  @IsIn(['job_seeker', 'employer'])
-  role!: 'job_seeker' | 'employer';
+  @IsIn(['job_seeker', 'employer','admin'])
+  role!: 'job_seeker' | 'employer' | 'admin';
 }
