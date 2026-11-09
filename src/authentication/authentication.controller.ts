@@ -74,7 +74,8 @@ export class AuthenticationController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Credentials are invalid or email is not verified.',
+    description:
+      'Credentials are invalid, email is not verified, or the account is inactive.',
   })
   login(@Body() loginDto: LoginDto) {
     return this.authenticationService.login(loginDto);

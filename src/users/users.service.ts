@@ -22,7 +22,6 @@ const PUBLIC_USER_FIELDS: FindOptionsSelect<User> = {
   companyId: true,
   isEmailVerified: true,
   createdAt: true,
-  updatedAt: true,
 };
 
 @Injectable()
@@ -86,5 +85,37 @@ export class UsersService {
     await this.userRepository.remove(user);
 
     return { message: `User with ID ${id} deleted successfully` };
+  }
+
+  async deactivateUser(id: number) {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      select: { id: true, isActive: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with id ${id} not found`);
+    }
+
+    user.isActive = 0;
+    await this.userRepository.save(user);
+
+    return { message: `User with ID ${id} deactivated successfully` };
+  }
+
+  async activateUser(id: number) {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      select: { id: true, isActive: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with id ${id} not found`);
+    }
+
+    user.isActive = 1;
+    await this.userRepository.save(user);
+
+    return { message: `User with ID ${id} activated successfully` };
   }
 }

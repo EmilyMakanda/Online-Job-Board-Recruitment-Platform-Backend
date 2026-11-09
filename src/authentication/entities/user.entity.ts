@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { Company } from '../../company/entities/company.entity.js';
 import { Job } from '../../jobs/entities/jobs.entity.js';
+import type { UserRole } from '../roles.decorator.js';
 
 @Entity('users')
 export class User {
@@ -48,7 +49,7 @@ export class User {
     length: 20,
     default: 'job_seeker',
   })
-  role: string;
+  role: UserRole;
 
   // Same database column as the company relation below (COMPANY_ID)
   @Column({

@@ -1,3 +1,4 @@
+
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -34,26 +35,16 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
 
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        console.log('Database config check:', {
-          host: config.get<string>('DB_HOST'),
-          port: config.get<string>('DB_PORT'),
-          serviceName: config.get<string>('DB_SERVICE_NAME'),
-          username: config.get<string>('DB_USERNAME'),
-          hasPassword: Boolean(config.get<string>('DB_PASSWORD')),
-        });
-
-        return {
-          type: 'oracle' as const,
-          host: config.get<string>('DB_HOST'),
-          port: Number(config.get<string>('DB_PORT') ?? 1521),
-          serviceName: config.get<string>('DB_SERVICE_NAME'),
-          username: config.get<string>('DB_USERNAME'),
-          password: config.get<string>('DB_PASSWORD'),
-          autoLoadEntities: true,
-          synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
-        };
-      },
+      useFactory: (config: ConfigService) => ({
+        type: 'oracle' as const,
+        host: config.get<string>('DB_HOST'),
+        port: Number(config.get<string>('DB_PORT') ?? 1521),
+        serviceName: config.get<string>('DB_SERVICE_NAME'),
+        username: config.get<string>('DB_USERNAME'),
+        password: config.get<string>('DB_PASSWORD'),
+        autoLoadEntities: true,
+        synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
+      }),
     }),
 
     ...(observeEnabled

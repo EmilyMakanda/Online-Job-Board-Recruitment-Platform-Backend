@@ -35,6 +35,18 @@ describe('RolesGuard', () => {
     expect(guard.canActivate(createContext('employer'))).toBe(true);
   });
 
+  it('allows administrators and rejects employers for admin-only actions', () => {
+    const reflector = {
+      getAllAndOverride: vi.fn().mockReturnValue(['admin']),
+    } as unknown as Reflector;
+    const guard = new RolesGuard(reflector);
+
+    expect(guard.canActivate(createContext('admin'))).toBe(true);
+    expect(() => guard.canActivate(createContext('employer'))).toThrow(
+      'You do not have permission to access this resource.',
+    );
+  });
+
   it('rejects users without a required role', () => {
     const reflector = {
       getAllAndOverride: vi.fn().mockReturnValue(['employer']),

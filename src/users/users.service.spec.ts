@@ -121,4 +121,50 @@ describe('UsersService', () => {
       expect(userRepo.remove).toHaveBeenCalledWith(user);
     });
   });
+
+  describe('deactivateUser', () => {
+    it('sets the account inactive and saves it', async () => {
+      const user = { id: 4, isActive: 1 };
+      userRepo.findOne.mockResolvedValue(user);
+      userRepo.save.mockImplementation(async (savedUser) => savedUser);
+
+      await expect(service.deactivateUser(4)).resolves.toEqual({
+        message: 'User with ID 4 deactivated successfully',
+      });
+      expect(user.isActive).toBe(0);
+      expect(userRepo.save).toHaveBeenCalledWith(user);
+    });
+
+    it('throws NotFoundException for an unknown account', async () => {
+      userRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.deactivateUser(404)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(userRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('activateUser', () => {
+    it('sets the account active and saves it', async () => {
+      const user = { id: 4, isActive: 0 };
+      userRepo.findOne.mockResolvedValue(user);
+      userRepo.save.mockImplementation(async (savedUser) => savedUser);
+
+      await expect(service.activateUser(4)).resolves.toEqual({
+        message: 'User with ID 4 activated successfully',
+      });
+      expect(user.isActive).toBe(1);
+      expect(userRepo.save).toHaveBeenCalledWith(user);
+    });
+
+    it('throws NotFoundException for an unknown account', async () => {
+      userRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.activateUser(404)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(userRepo.save).not.toHaveBeenCalled();
+    });
+  });
 });
