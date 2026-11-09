@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CreateApplicationDto {
   @ApiProperty({
@@ -9,9 +9,10 @@ export class CreateApplicationDto {
   @IsUUID()
   jobId: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'The cover letter for the application',
     example: 'I am a highly motivated candidate...',
+    maxLength: 255,
   })
   @IsOptional()
   @IsString()

@@ -1,6 +1,5 @@
 
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { createObserveModule } from '@nestjs/observe';
 
@@ -14,6 +13,7 @@ import { UsersModule } from './users/users.module.js';
 import { CompanyModule } from './company/company.module.js';
 import { NotificationsModule } from './notification/notification.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { CompanyModule } from './company/company.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -64,6 +64,8 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
     CompanyModule,
     NotificationsModule,
     AdminModule,
+    ApplicationsModule,
+    CompanyModule,
   ],
   controllers: [AppController],
   providers: [AppService],

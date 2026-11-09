@@ -10,6 +10,7 @@ import { User } from '../authentication/entities/user.entity.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 
+
 const PUBLIC_USER_FIELDS: FindOptionsSelect<User> = {
   id: true,
   name: true,

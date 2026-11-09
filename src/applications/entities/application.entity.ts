@@ -1,6 +1,13 @@
 import{ Entity,PrimaryGeneratedColumn, Column, CreateDateColumn, type Relation, ManyToOne, JoinColumn} from 'typeorm';
 import { Job } from '../../jobs/entities/jobs.entity.js';
 
+export enum ApplicationStatus{
+    SUBMITTED = 'SUBMITTED',
+    IN_REVIEW = 'IN_REVIEW',
+    ACCEPTED  = 'ACCEPTED',
+    REJECTED  = 'REJECTED',
+}
+
 @Entity('Applications')
 export class Application{
 
@@ -40,4 +47,5 @@ export class Application{
     @ManyToOne(() => Job, (job) => job.applications, { nullable: false })
     @JoinColumn({ name: 'JOB_ID', referencedColumnName: 'id' })
     job: Relation<Job>;
+    
 }
