@@ -22,8 +22,8 @@ import { CompanyService } from './company.service.js';
 import { CreateCompanyDto } from './dto/create-company.dto.js';
 import { UpdateCompanyDto } from './dto/update-company.dto.js';
 import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
-import { RolesGuard } from '../authentication/guards/roles.guards.js';
-import { Roles, UserRole } from '../authentication/roles.decorator.js';
+import { RolesGuard } from '../authentication/guards/role.guards.js';
+import { Roles, UserRole } from '../authentication/role.decorator.js';
 
 interface AuthenticatedRequest extends Request {
   user: { sub: number; email: string; role: UserRole };

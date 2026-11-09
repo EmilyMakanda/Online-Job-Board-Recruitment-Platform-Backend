@@ -12,6 +12,8 @@ import { AuthenticationModule } from './authentication/authentication.module.js'
 import { JobModule } from './jobs/jobs.module.js';
 import { UsersModule } from './users/users.module.js';
 import { CompanyModule } from './company/company.module.js';
+import { NotificationsModule } from './notification/notification.module.js';
+import { AdminModule } from './admin/admin.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -27,7 +29,9 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
 
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -58,6 +62,8 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
     JobModule,
     UsersModule,
     CompanyModule,
+    NotificationsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -17,12 +17,6 @@ export class Application{
     jobSeekerId: number;
 
     @Column({
-        name: 'JOB_ID',
-        type: 'number',
-    })
-    jobId: number;
-
-    @Column({
         name: 'STATUS',
         type: 'varchar2',
         length: 30,

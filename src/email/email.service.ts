@@ -1,22 +1,34 @@
 
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import nodemailer from 'nodemailer';
+import { Injectable, Logger } from '@nestjs/common';
+import * as nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 
 @Injectable()
 export class EmailService {
-  private readonly transporter;
+  private readonly logger = new Logger(EmailService.name);
 
-  constructor(private readonly configService: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('MAIL_HOST', 'smtp.gmail.com'),
-      port: Number(this.configService.get('MAIL_PORT', 465)),
-      secure: true,
-      auth: {
-        user: this.configService.get<string>('MAIL_USER'),
-        pass: this.configService.get<string>('MAIL_PASSWORD'),
-      },
-    });
+  private transporterPromise?: Promise<Transporter>;
+
+  private async getTransporter(): Promise<Transporter> {
+    if (!this.transporterPromise) {
+      this.transporterPromise = nodemailer
+        .createTestAccount()
+        .then((account) => {
+          this.logger.log('Ethereal test account created');
+
+          return nodemailer.createTransport({
+            host: 'smtp.ethereal.email',
+            port: 587,
+            secure: false,
+            auth: {
+              user: account.user,
+              pass: account.pass,
+            },
+          });
+        });
+    }
+
+    return this.transporterPromise;
   }
 
   async sendNotificationEmail(
@@ -24,29 +36,39 @@ export class EmailService {
     subject: string,
     message: string,
   ) {
-    const from = this.configService.get<string>('MAIL_USER');
+    const transporter = await this.getTransporter();
 
-    const info = await this.transporter.sendMail({
-      from: `"Job Board Notifications" <${from}>`,
+    const info = await transporter.sendMail({
+      from: '"Job Board Notifications" <notifications@example.com>',
       to,
       subject,
       text: message,
-      html: `<h2>Hey emily ,</h2><p>${this.escapeHtml(message)}</p>`,
+      html: `
+        <div style="font-family: Arial, sans-serif;">
+          <h2>Job Board Notification</h2>
+          <p>${this.escapeHtml(message)}</p>
+          <p>Thank you for using our Job Board Recruitment Platform.</p>
+        </div>
+      `,
     });
 
-    console.log('Email accepted by SMTP server:', info.messageId);
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+
+    this.logger.log(`Email sent. Message ID: ${info.messageId}`);
+    this.logger.log(`Preview URL: ${previewUrl}`);
 
     return {
-      message: 'Email accepted by Gmail SMTP',
+      message: 'Test email sent successfully',
       messageId: info.messageId,
+      previewUrl,
     };
   }
 
   async sendTestEmail(to: string) {
     return this.sendNotificationEmail(
       to,
-      'Account created',
-      'Your account has been created , thank you!',
+      'Job Board Test Email',
+      'Your email notification system is working successfully!',
     );
   }
 

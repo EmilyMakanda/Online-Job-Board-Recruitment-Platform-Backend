@@ -13,7 +13,20 @@ import {
 export class Company {
   @PrimaryGeneratedColumn({ name: 'company_id' })
   companyId: number;
+@Column({
+  name: 'VERIFICATION_STATUS',
+  type: 'varchar2',
+  length: 20,
+  default: 'pending',
+})
+verificationStatus: string;
 
+@Column({
+  name: 'VERIFIED_AT',
+  type: 'timestamp',
+  nullable: true,
+})
+verifiedAt: Date | null;
   @Column({
     name: 'company_name',
     type: 'varchar2',
@@ -35,12 +48,6 @@ export class Company {
   })
   website: string | null;
 
-    @Column({
-    type: 'varchar2',
-    length: 100,
-    nullable: true,
-  })
-  location: string | null;
 
   @Column({
     name: 'employer_id',
@@ -48,9 +55,14 @@ export class Company {
   })
   employerId: number;
 
-  @CreateDateColumn({ type: 'timestamp' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamp' })
-  updatedAt: Date;
+@CreateDateColumn({
+  name: 'createdAt',
+  type: 'timestamp',
+})
+createdAt: Date;
+@UpdateDateColumn({
+  name: 'updatedAt',
+  type: 'timestamp',
+})
+updatedAt: Date;
 }

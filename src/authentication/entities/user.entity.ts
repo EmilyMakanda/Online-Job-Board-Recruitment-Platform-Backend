@@ -1,12 +1,15 @@
-
 import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
   OneToMany,
-  type Relation
+  type Relation,
 } from 'typeorm';
+import { Company } from '../../company/entities/company.entity.js';
 import { Job } from '../../jobs/entities/jobs.entity.js';
 import type { UserRole } from '../roles.decorator.js';
 
@@ -24,13 +27,13 @@ export class User {
   @Column({ type: 'varchar2', length: 20, nullable: true })
   phone: string | null;
 
-  @Column({type: 'varchar2',length: 255, nullable: true })
+  @Column({ type: 'varchar2', length: 255, nullable: true })
   resumeUrl: string | null;
 
-  @Column({type: 'varchar2', length: 100, nullable: true })
+  @Column({ type: 'varchar2', length: 100, nullable: true })
   location: string | null;
 
-  @Column({type: 'varchar2', length: 1000, nullable: true })
+  @Column({ type: 'varchar2', length: 1000, nullable: true })
   skills: string | null;
 
   @Column({
@@ -48,24 +51,30 @@ export class User {
   })
   role: UserRole;
 
+  // Same database column as the company relation below (COMPANY_ID)
   @Column({
+    name: 'COMPANY_ID',
     type: 'number',
-    nullable: true
+    nullable: true,
   })
-  companyId: number | null; 
+  companyId: number | null;
+
+  @ManyToOne(() => Company, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'COMPANY_ID' })
+  company: Relation<Company> | null;
 
   @Column({ type: 'number', default: 0 })
   isEmailVerified: number;
 
   @Column({
-    name: 'is_active',
+    name: 'IS_ACTIVE',
     type: 'number',
     default: 1,
   })
   isActive: number;
 
-  @OneToMany(()=>Job, (job) => job.postedBy)
-  jobs:Relation<Job[]>;
+  @OneToMany(() => Job, (job) => job.postedBy)
+  jobs: Relation<Job[]>;
 
   @Column({
     type: 'varchar2',
@@ -82,4 +91,7 @@ export class User {
 
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp' })
+  updatedAt: Date;
 }
