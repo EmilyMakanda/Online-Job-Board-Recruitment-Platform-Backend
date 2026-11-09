@@ -38,13 +38,17 @@ export class User {
     length: 20,
     default: 'job_seeker',
   })
-  role: string;
+  role: UserRole;
 
   @typeorm.Column({
     type: 'number',
-    nullable: true
+    nullable: true,
   })
-  companyId: number | null; 
+  companyId: number | null;
+
+  @ManyToOne(() => Company, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'COMPANY_ID' })
+  company: Relation<Company> | null;
 
   @typeorm.Column({ type: 'number', default: 0 })
   isEmailVerified: number;
@@ -77,4 +81,7 @@ company: Company | null;
 isActive: number;
   @typeorm.CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp' })
+  updatedAt: Date;
 }

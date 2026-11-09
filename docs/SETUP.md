@@ -78,6 +78,18 @@ npm run start:dev
 ```
 
 When started, TypeORM will connect to Oracle 21c and automatically sync entities, creating or updating database tables as needed.
+The application does not currently configure TypeORM migrations. When using a
+database with `DB_SYNCHRONIZE` disabled, apply this schema change through your
+normal Oracle change process before deploying the account-status code:
+
+```sql
+ALTER TABLE users
+ADD is_active NUMBER(1) DEFAULT 1 NOT NULL;
+```
+
+For the disposable local database where synchronization is enabled, TypeORM
+uses the `User` entity definition to add the column. Do not enable
+`DB_SYNCHRONIZE` on production databases just to apply this change.
 
 ---
 

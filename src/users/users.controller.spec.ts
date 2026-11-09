@@ -15,6 +15,8 @@ describe('UsersController', () => {
     findUser: vi.fn(),
     updateUser: vi.fn(),
     removeUser: vi.fn(),
+    deactivateUser: vi.fn(),
+    activateUser: vi.fn(),
   };
 
   const reqFor = (sub: number, role: 'job_seeker' | 'employer' = 'job_seeker') =>
@@ -47,6 +49,26 @@ describe('UsersController', () => {
       UsersController.prototype.findAll,
     );
     expect(roles).toEqual(['employer']);
+  });
+
+  it('restricts account status actions to administrators', () => {
+    expect(
+      Reflect.getMetadata(ROLES_KEY, UsersController.prototype.deactivate),
+    ).toEqual(['admin']);
+    expect(
+      Reflect.getMetadata(ROLES_KEY, UsersController.prototype.activate),
+    ).toEqual(['admin']);
+  });
+
+  it('delegates account deactivation and activation to the service', async () => {
+    usersService.deactivateUser.mockResolvedValue({ message: 'deactivated' });
+    usersService.activateUser.mockResolvedValue({ message: 'activated' });
+
+    await controller.deactivate(8);
+    await controller.activate(8);
+
+    expect(usersService.deactivateUser).toHaveBeenCalledWith(8);
+    expect(usersService.activateUser).toHaveBeenCalledWith(8);
   });
 
   describe('findOne', () => {
