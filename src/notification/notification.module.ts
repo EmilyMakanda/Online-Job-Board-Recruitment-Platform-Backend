@@ -13,5 +13,6 @@ import { EmailModule } from '../email/email.module.js';
   ],
   controllers: [NotificationsController],
   providers: [NotificationsService],
+  exports: [NotificationsService],
 })
 export class NotificationsModule {}

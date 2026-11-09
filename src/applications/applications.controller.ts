@@ -12,7 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, } from '@nestjs/swagger';
 import { ApplicationsService } from './applications.service.js';
 import { CreateApplicationDto } from './dto/create-application.dto.js';
 import { UpdateApplicationDto } from './dto/update-application.dto.js';
@@ -28,6 +28,7 @@ interface AuthenticatedRequest extends Request {
 }
 
 @ApiTags('Applications')
+@ApiBearerAuth()
 @Controller('applications')
 @Roles('job_seeker')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -35,6 +36,8 @@ export class ApplicationsController {
   constructor(private readonly applicationsService: ApplicationsService) {}
 
   @Post()
+
+  @Roles('job_seeker')
   @ApiOperation({ summary: 'Submit a job application' })
   create(
     @Body() createApplicationDto: CreateApplicationDto,
@@ -44,12 +47,48 @@ export class ApplicationsController {
   }
 
   @Get()
+  @Roles('job_seeker')
   @ApiOperation({ summary: 'View the authenticated jobseeker applications' })
   findMine(@Req() req: AuthenticatedRequest) {
     return this.applicationsService.findByJobSeeker(req.user.sub);
   }
 
+  @Get('employer')
+  @Roles('employer')
+  @ApiOperation({
+    summary: 'View applications for my jobs',
+  })
+
+  findForEmployer(
+    @Req() req: AuthenticatedRequest,
+  ){
+
+    return this.applicationsService.findByEmployer(
+      req.user.sub,
+    );
+  }
+
+  @Get('job-seeker/:jobSeekerId')
+  @Roles('job_seeker')
+
+  findByJobSeeker(
+    @Param('jobSeekerId', ParseIntPipe)
+    jobSeekerId: number,
+
+    @Req() req: AuthenticatedRequest,
+  ){
+    if (jobSeekerId !== req.user.sub){
+      throw new ForbiddenException(
+        'You can only view your own applications.'
+      );
+    }
+    return this.applicationsService.findByJobSeeker(
+      req.user.sub,
+    );
+  }
+
   @Get(':id')
+  @Roles('job_seeker')
   @ApiOperation({
     summary: 'Get one of the authenticated jobseeker applications',
   })
@@ -60,18 +99,21 @@ export class ApplicationsController {
     return this.applicationsService.findOne(id, req.user.sub);
   }
 
-  @Get('job-seeker/:jobSeekerId')
+  @Patch(':id/status')
+  @Roles('employer')
   @ApiOperation({
-    summary: 'View applications for the authenticated jobseeker',
+    summary: 'Update application status',
   })
-  findByJobSeeker(
-    @Param('jobSeekerId', ParseIntPipe) jobSeekerId: number,
-    @Req() req: AuthenticatedRequest,
-  ) {
-    if (jobSeekerId !== req.user.sub) {
-      throw new ForbiddenException('You can only view your own applications.');
-    }
-    return this.applicationsService.findByJobSeeker(req.user.sub);
+  updateStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateDto: UpdateApplicationDto,
+    @Req() req: AuthenticatedRequest, 
+  ){
+    return this.applicationsService.updateStatus(
+      id,
+      req.user.sub,
+      updateDto,
+    );
   }
 
   @Patch(':id')

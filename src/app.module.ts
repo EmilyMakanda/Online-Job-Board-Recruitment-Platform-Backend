@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { createObserveModule } from '@nestjs/observe';
@@ -12,11 +11,8 @@ import { AuthenticationModule } from './authentication/authentication.module.js'
 import { JobModule } from './jobs/jobs.module.js';
 import { UsersModule } from './users/users.module.js';
 import { NotificationsModule } from './notification/notification.module.js';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminModule } from './admin/admin.module.js';
+import { CompanyModule } from './company/company.module.js';
 
 @Module({
   imports: [
@@ -53,6 +49,8 @@ import { AdminModule } from './admin/admin.module.js';
     UsersModule,
     NotificationsModule,
     AdminModule,
+    ApplicationsModule,
+    CompanyModule,
   ],
   controllers: [AppController],
   providers: [AppService],
