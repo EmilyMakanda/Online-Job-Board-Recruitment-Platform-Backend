@@ -38,17 +38,13 @@ export class Job {
   @Column({ type: 'varchar2', length: 20, default: JobStatus.OPEN })
   status: JobStatus;
 
-  @ManyToOne(() => Company, (company) => company.jobs, {
-    onDelete: 'CASCADE',
-    nullable: false,
-  })
-  @JoinColumn({ name: 'company_id' })
-  company: Relation<Company>;
-
-  // The user who posted the job
   @ManyToOne(() => User, (user) => user.jobs, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'posted_by_user_id' })
   postedBy: Relation<User>;
+
+  @ManyToOne(() => Company, { nullable: false })
+  @JoinColumn({ name: 'company_id', referencedColumnName: 'companyId' })
+  company: Relation<Company>;
 
   @OneToMany(() => Application, (application) => application.job)
   applications: Relation<Application[]>;

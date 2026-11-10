@@ -6,7 +6,6 @@ import { createObserveModule } from '@nestjs/observe';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-
 import { ApplicationsModule } from './applications/applications.module.js';
 import { AuthenticationModule } from './authentication/authentication.module.js';
 import { JobModule } from './jobs/jobs.module.js';
@@ -14,7 +13,6 @@ import { UsersModule } from './users/users.module.js';
 import { CompanyModule } from './company/company.module.js';
 import { NotificationsModule } from './notification/notification.module.js';
 import { AdminModule } from './admin/admin.module.js';
-
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
