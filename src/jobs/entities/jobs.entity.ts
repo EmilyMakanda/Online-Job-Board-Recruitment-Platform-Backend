@@ -15,9 +15,9 @@ import { Application } from '../../applications/entities/application.entity.js';
 import { Company } from '../../company/entities/company.entity.js';
 
 export enum JobStatus {
-    OPEN = 'OPEN',
-    CLOSED ='CLOSED',
-    DRAFT = 'DRAFT',
+  OPEN = 'OPEN',
+  CLOSED = 'CLOSED',
+  DRAFT = 'DRAFT',
 }
 
 @Entity('jobs')
@@ -25,10 +25,10 @@ export class Job {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 150, nullable: false })
+  @Column({ type: 'varchar2', length: 150, nullable: false })
   title: string;
 
-  @Column({ type: 'varchar', length: 2000, nullable: false })
+  @Column({ type: 'varchar2', length: 2000, nullable: false })
   description: string;
 
   @Column({ type: 'varchar2', length: 100, nullable: false })

@@ -30,8 +30,9 @@ services:
       DB_HOST: oracle-db
       DB_PORT: "1521"
       DB_SYNCHRONIZE: ${DB_SYNCHRONIZE:-true}
+      PORT: "3002"
     ports:
-      - "3002:3002"
+      - "3002:3002"     
     volumes:
       - uploads_data:/app/uploads
     restart: unless-stopped
