@@ -1,31 +1,42 @@
-
-import * as typeorm from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+  type Relation,
+} from 'typeorm';
 import { Company } from '../../company/entities/company.entity.js';
 import { Job } from '../../jobs/entities/jobs.entity.js';
-@typeorm.Entity('users')
+import { type UserRole } from '../roles.decorator.js';
+
+@Entity('users')
 export class User {
-  @typeorm.PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn()
   id: number;
 
-  @typeorm.Column({ type: 'varchar2', length: 100 })
+  @Column({ type: 'varchar2', length: 100 })
   name: string;
 
-  @typeorm.Column({ type: 'varchar2', length: 150, unique: true })
+  @Column({ type: 'varchar2', length: 150, unique: true })
   email: string;
 
-  @typeorm.Column({ type: 'varchar2', length: 20, nullable: true })
+  @Column({ type: 'varchar2', length: 20, nullable: true })
   phone: string | null;
 
-  @typeorm.Column({type: 'varchar2',length: 255, nullable: true })
+  @Column({type: 'varchar2',length: 255, nullable: true })
   resumeUrl: string | null;
 
-  @typeorm.Column({type: 'varchar2', length: 100, nullable: true })
+  @Column({type: 'varchar2', length: 100, nullable: true })
   location: string | null;
 
-  @typeorm.Column({type: 'varchar2', length: 1000, nullable: true })
+  @Column({type: 'varchar2', length: 1000, nullable: true })
   skills: string | null;
 
-  @typeorm.Column({
+  @Column({
     type: 'varchar2',
     length: 255,
     select: false,
@@ -33,14 +44,15 @@ export class User {
   password: string;
 
   // Differentiates job seekers from employers
-  @typeorm.Column({
+  @Column({
     type: 'varchar2',
     length: 20,
     default: 'job_seeker',
   })
   role: UserRole;
 
-  @typeorm.Column({
+  @Column({
+    name: 'COMPANY_ID',
     type: 'number',
     nullable: true,
   })
@@ -50,36 +62,33 @@ export class User {
   @JoinColumn({ name: 'COMPANY_ID' })
   company: Relation<Company> | null;
 
-  @typeorm.Column({ type: 'number', default: 0 })
+  @Column({ type: 'number', default: 0 })
   isEmailVerified: number;
 
-  @typeorm.OneToMany(()=>Job, (Job) => Job.postedBy)
-  jobs:typeorm.Relation<Job[]>;
+  @OneToMany(()=> Job, (job) => job.postedBy)
+  jobs:Relation<Job[]>;
 
-  @typeorm.Column({
+  @Column({
     type: 'varchar2',
     length: 64,
     nullable: true,
   })
   emailVerificationTokenHash: string | null;
 
-  @typeorm.Column({
+  @Column({
     type: 'timestamp',
     nullable: true,
   })
   emailVerificationTokenExpiresAt: Date | null;
-  @typeorm.Column({
-  name: 'IS_ACTIVE',
-  type: 'number',
-  default: 1,
-})
 
+  @Column({
+    name: 'IS_ACTIVE',
+    type: 'number',
+    default: 1,
+  })
+  isActive: number;
 
-@typeorm.ManyToOne(() => Company, { onDelete: 'SET NULL', nullable: true })
-@typeorm.JoinColumn({ name: 'COMPANY_ID' })
-company: Company | null;
-isActive: number;
-  @typeorm.CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;
 
   @UpdateDateColumn({ type: 'timestamp' })
