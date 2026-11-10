@@ -38,18 +38,13 @@ export class Job {
   @Column({ type: 'varchar2', length: 20, default: JobStatus.OPEN })
   status: JobStatus;
 
-    @Index()
-    @Column({type: 'varchar2', length: 20, default: JobStatus.OPEN,})
-    status: JobStatus;
-    
-    @ManyToOne(()=>User, (user) => user.jobs, {onDelete: 'CASCADE'})
-    @JoinColumn({ name: 'posted_by_user_id' })
-    postedBy: Relation<User>;
-@OneToMany(
-  () => Application,
-  (application) => application.job,
-)
-applications: Application[];
+  @ManyToOne(() => User, (user) => user.jobs, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'posted_by_user_id' })
+  postedBy: Relation<User>;
+
+  @ManyToOne(() => Company, { nullable: false })
+  @JoinColumn({ name: 'company_id', referencedColumnName: 'companyId' })
+  company: Relation<Company>;
 
   @OneToMany(() => Application, (application) => application.job)
   applications: Relation<Application[]>;
