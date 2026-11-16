@@ -1,4 +1,3 @@
-
 import * as typeorm from 'typeorm';
 import { Company } from '../../company/entities/company.entity.js';
 import { Job } from '../../jobs/entities/jobs.entity.js';
@@ -69,12 +68,14 @@ export class User {
   type: 'number',
   default: 1,
 })
-
-
-@typeorm.ManyToOne(() => Company, { onDelete: 'SET NULL', nullable: true })
-@typeorm.JoinColumn({ name: 'COMPANY_ID' })
-company: Company | null;
 isActive: number;
+
+@typeorm.ManyToOne(() => Company, 
+{ onDelete: 'SET NULL', nullable: true })
+@typeorm.JoinColumn({ 
+  name: 'companyId',
+  referencedColumnName: 'companyId'})
+company: typeorm.Relation<Company> | null;
   @typeorm.CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;
 }

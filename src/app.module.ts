@@ -40,6 +40,12 @@ import { CompanyModule } from './company/company.module.js';
           password: config.get<string>('DB_PASSWORD'),
           autoLoadEntities: true,
           synchronize: false,
+
+          extra: {
+            poolMin: 1, 
+            poolMax: 10,
+            queueTimeout: 60000,
+          }
         };
       },
     }),
