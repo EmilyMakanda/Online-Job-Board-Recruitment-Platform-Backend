@@ -43,10 +43,18 @@ The `/users` endpoints require a valid JWT access token. First log in through
 Authorization: Bearer <access_token>
 ```
 
-Tokens are signed with `JWT_SECRET` and expire after one day. Registration,
-email verification, and login remain public so users can obtain an access
-token. Creating, updating, and deleting job listings require a valid token
-belonging to an `employer`; listing and retrieving jobs remain public.
+Tokens are signed with `JWT_SECRET` and expire after one day. Each protected
+request also reloads the account from Oracle, so deleted or deactivated users
+cannot continue using an existing token. Registration, email verification, and
+login remain public so users can obtain an access token. Creating, updating,
+and deleting job listings require a valid token belonging to an `employer`;
+listing and retrieving jobs remain public.
+
+The `PATCH /users/:id/deactivate` and `PATCH /users/:id/activate` endpoints
+require an `admin` token. Public registration accepts only `job_seeker` and
+`employer`; an administrator must be provisioned by a trusted operator by
+updating the intended user's `role` in Oracle. Do not expose administrator role
+assignment through public registration or profile updates.
 
 `POST /authentication/logout` requires a bearer token. Access tokens are
 stateless and are not revoked by this endpoint, so the client must discard its

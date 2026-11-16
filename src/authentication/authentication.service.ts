@@ -154,7 +154,7 @@ export class AuthenticationService {
       );
     }
 
-    if (!['job_seeker', 'employer'].includes(role)) {
+    if (!['job_seeker', 'employer', 'admin'].includes(role)) {
       throw new BadRequestException(
         'Role must be either job_seeker or employer.',
       );
@@ -188,6 +188,7 @@ export class AuthenticationService {
       password: await bcrypt.hash(password, 12),
       role,
       isEmailVerified: 0,
+      isActive: 1,
       emailVerificationTokenHash: this.hashToken(otp),
       emailVerificationTokenExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
@@ -317,6 +318,12 @@ export class AuthenticationService {
     if (user.isEmailVerified !== 1) {
       throw new UnauthorizedException(
         'Please verify your email before logging in.',
+      );
+    }
+
+    if (user.isActive !== 1) {
+      throw new UnauthorizedException(
+        'Your account has been deactivated. Please contact the administrator.',
       );
     }
 

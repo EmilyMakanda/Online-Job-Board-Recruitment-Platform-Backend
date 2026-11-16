@@ -60,6 +60,24 @@ export class JobController {
     return this.jobService.createJob(dto, req.user.sub);
   }
 
+  @Patch(':jobID/publish')
+  @ApiBearerAuth()
+  @Roles('employer')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiOperation({ summary: 'Publish an employer-owned draft job listing' })
+  publishJob(@Param('jobID') jobID: string, @Req() req: AuthenticatedRequest) {
+    return this.jobService.publishJob(jobID, req.user.sub);
+  }
+
+  @Patch(':jobID/close')
+  @ApiBearerAuth()
+  @Roles('employer')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiOperation({ summary: 'Close an employer-owned job listing' })
+  closeJob(@Param('jobID') jobID: string, @Req() req: AuthenticatedRequest) {
+    return this.jobService.closeJob(jobID, req.user.sub);
+  }
+
   @Get('my-jobs')
   @ApiBearerAuth()
   @Roles('employer')
@@ -73,9 +91,11 @@ export class JobController {
   @ApiBearerAuth()
   @Roles('job_seeker')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @ApiOperation({ summary: 'Search job listings by title' })
-  searchJobs(@Query('name') name: string) {
-    return this.jobService.searchJobsByName(name);
+  @ApiOperation({
+    summary: 'Search available job listings by title, description, or location',
+  })
+  searchJobs(@Query('q') query: string, @Query('name') legacyName: string) {
+    return this.jobService.searchJobsByName(query ?? legacyName);
   }
 
   @Get()
@@ -88,7 +108,7 @@ export class JobController {
     return this.jobService.getAllJobs();
   }
 
-  // Return one job by its ID.
+  // Job seekers only receive open listings; employers can view their own jobs.
   @Get(':jobID')
   @ApiBearerAuth()
   @Roles('employer', 'job_seeker')

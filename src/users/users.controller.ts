@@ -131,4 +131,28 @@ export class UsersController {
 
     return this.usersService.removeUser(id);
   }
+
+  @Patch(':id/deactivate')
+  @Roles('admin')
+  @ApiOperation({ summary: 'Deactivate a user account (administrators only)' })
+  @ApiParam({ name: 'id', type: Number, description: 'User account ID' })
+  @ApiResponse({ status: 200, description: 'Account deactivated successfully.' })
+  @ApiResponse({ status: 401, description: 'A valid access token is required.' })
+  @ApiResponse({ status: 403, description: 'Only administrators can deactivate accounts.' })
+  @ApiResponse({ status: 404, description: 'Account not found.' })
+  deactivate(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.deactivateUser(id);
+  }
+
+  @Patch(':id/activate')
+  @Roles('admin')
+  @ApiOperation({ summary: 'Reactivate a user account (administrators only)' })
+  @ApiParam({ name: 'id', type: Number, description: 'User account ID' })
+  @ApiResponse({ status: 200, description: 'Account activated successfully.' })
+  @ApiResponse({ status: 401, description: 'A valid access token is required.' })
+  @ApiResponse({ status: 403, description: 'Only administrators can activate accounts.' })
+  @ApiResponse({ status: 404, description: 'Account not found.' })
+  activate(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.activateUser(id);
+  }
 }
