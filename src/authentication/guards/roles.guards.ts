@@ -4,16 +4,9 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
+
 import { Reflector } from '@nestjs/core';
-import type { Request } from 'express';
-
 import { ROLES_KEY, UserRole } from '../roles.decorator.js';
-
-interface AuthenticatedRequest extends Request {
-  user?: {
-    role?: UserRole;
-  };
-}
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -25,13 +18,17 @@ export class RolesGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    if (!requiredRoles?.length) {
+    if (!requiredRoles || requiredRoles.length === 0) {
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    if (!user?.role || !requiredRoles.includes(user.role)) {
-      throw new ForbiddenException('You do not have permission to access this resource.');
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+
+    if (!user || !requiredRoles.includes(user.role)) {
+      throw new ForbiddenException(
+        'You do not have permission to access this resource.',
+      );
     }
 
     return true;

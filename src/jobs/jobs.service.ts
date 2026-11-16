@@ -41,7 +41,7 @@ export class JobService {
 
     const job = this.jobRepository.create({
       ...dto,
-      status: JobStatus.DRAFT,
+      status: JobStatus.PENDING,
       postedBy: user,
       company,
     });
@@ -51,8 +51,19 @@ export class JobService {
   // Updates the supplied fields for a listing.
   async updateJob(jobId: string, dto: UpdateJobDto, employerId: number) {
     const job = await this.getOneJobForEmployer(jobId, employerId);
+    if (job.status === JobStatus.REMOVED) {
+      throw new BadRequestException(
+        'An administratively removed job cannot be edited.',
+      );
+    }
 
     Object.assign(job, dto);
+    if (
+      job.status === JobStatus.APPROVED ||
+      job.status === JobStatus.REJECTED
+    ) {
+      job.status = JobStatus.PENDING;
+    }
     return this.jobRepository.save(job);
   }
 
@@ -61,21 +72,38 @@ export class JobService {
     if (job.status === JobStatus.CLOSED) {
       throw new BadRequestException('A closed job cannot be published again.');
     }
+    if (job.status === JobStatus.REMOVED) {
+      throw new BadRequestException(
+        'An administratively removed job cannot be resubmitted.',
+      );
+    }
+    if (
+      job.status !== JobStatus.DRAFT &&
+      job.status !== JobStatus.REJECTED &&
+      job.status !== JobStatus.PENDING
+    ) {
+      throw new BadRequestException(
+        'Only draft or rejected jobs can be submitted for review.',
+      );
+    }
 
-    job.status = JobStatus.OPEN;
+    job.status = JobStatus.PENDING;
     return this.jobRepository.save(job);
   }
 
   async closeJob(jobId: string, employerId: number) {
     const job = await this.getOneJobForEmployer(jobId, employerId);
+    if (job.status !== JobStatus.APPROVED) {
+      throw new BadRequestException('Only approved jobs can be closed.');
+    }
     job.status = JobStatus.CLOSED;
     return this.jobRepository.save(job);
   }
 
-  // Returns all listings, newest first, for jobseekers.
+  // Returns only administrator-approved listings to jobseekers.
   getAllJobs() {
     return this.jobRepository.find({
-      where: { status: JobStatus.OPEN },
+      where: { status: JobStatus.APPROVED },
       relations: { company: true },
       order: { createdAt: 'DESC' },
     });
@@ -98,7 +126,7 @@ export class JobService {
     return this.jobRepository
       .createQueryBuilder('job')
       .leftJoinAndSelect('job.company', 'company')
-      .where('job.status = :status', { status: JobStatus.OPEN })
+      .where('job.status = :status', { status: JobStatus.APPROVED })
       .andWhere(
         '(LOWER(job.title) LIKE LOWER(:term) OR LOWER(job.description) LIKE LOWER(:term) OR LOWER(job.location) LIKE LOWER(:term))',
         { term: `%${normalizedName}%` },
@@ -107,10 +135,10 @@ export class JobService {
       .getMany();
   }
 
-  // Job seekers and the application flow can only retrieve available listings.
+  // Job seekers and the application flow can only retrieve approved listings.
   async getOneJob(id: string) {
     const job = await this.jobRepository.findOne({
-      where: { id, status: JobStatus.OPEN },
+      where: { id, status: JobStatus.APPROVED },
       relations: { company: true },
     });
 

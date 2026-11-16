@@ -32,10 +32,10 @@ describe('JobService', () => {
     );
   });
 
-  it('creates a draft associated with the authenticated employer company', async () => {
+  it('creates a pending job associated with the authenticated employer company', async () => {
     const user = { id: 12 } as User;
     const company = { companyId: 3, employerId: 12 } as Company;
-    const job = { id: 'job-id', status: JobStatus.DRAFT } as Job;
+    const job = { id: 'job-id', status: JobStatus.PENDING } as Job;
     userRepository.findOne.mockResolvedValue(user);
     companyRepository.findOneBy.mockResolvedValue(company);
     jobRepository.create.mockReturnValue(job);
@@ -43,7 +43,11 @@ describe('JobService', () => {
 
     await expect(
       service.createJob(
-        { title: 'Engineer', description: 'Build software', location: 'Remote' },
+        {
+          title: 'Engineer',
+          description: 'Build software',
+          location: 'Remote',
+        },
         12,
       ),
     ).resolves.toBe(job);
@@ -54,7 +58,7 @@ describe('JobService', () => {
       title: 'Engineer',
       description: 'Build software',
       location: 'Remote',
-      status: JobStatus.DRAFT,
+      status: JobStatus.PENDING,
       postedBy: user,
       company,
     });
@@ -66,7 +70,11 @@ describe('JobService', () => {
 
     await expect(
       service.createJob(
-        { title: 'Engineer', description: 'Build software', location: 'Remote' },
+        {
+          title: 'Engineer',
+          description: 'Build software',
+          location: 'Remote',
+        },
         12,
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -85,13 +93,13 @@ describe('JobService', () => {
     });
   });
 
-  it('lists only open jobs to job seekers', async () => {
+  it('lists only approved jobs to job seekers', async () => {
     jobRepository.find.mockResolvedValue([]);
 
     await service.getAllJobs();
 
     expect(jobRepository.find).toHaveBeenCalledWith({
-      where: { status: JobStatus.OPEN },
+      where: { status: JobStatus.APPROVED },
       relations: { company: true },
       order: { createdAt: 'DESC' },
     });
@@ -109,7 +117,7 @@ describe('JobService', () => {
     });
   });
 
-  it('searches open jobs by title, description, or location without regard to case', async () => {
+  it('searches approved jobs by title, description, or location without regard to case', async () => {
     const jobs = [{ id: 'job-id' }] as Job[];
     const queryBuilder = {
       leftJoinAndSelect: vi.fn().mockReturnThis(),
@@ -126,7 +134,7 @@ describe('JobService', () => {
       'company',
     );
     expect(queryBuilder.where).toHaveBeenCalledWith('job.status = :status', {
-      status: JobStatus.OPEN,
+      status: JobStatus.APPROVED,
     });
     expect(queryBuilder.andWhere).toHaveBeenCalledWith(
       '(LOWER(job.title) LIKE LOWER(:term) OR LOWER(job.description) LIKE LOWER(:term) OR LOWER(job.location) LIKE LOWER(:term))',
@@ -136,9 +144,7 @@ describe('JobService', () => {
   });
 
   it('requires a non-empty search query', async () => {
-    expect(() => service.searchJobsByName('   ')).toThrow(
-      BadRequestException,
-    );
+    expect(() => service.searchJobsByName('   ')).toThrow(BadRequestException);
   });
 
   it('updates only a job associated with the employer company', async () => {
@@ -156,6 +162,18 @@ describe('JobService', () => {
     expect(jobRepository.save).toHaveBeenCalledWith(job);
   });
 
+  it('prevents employers from editing or resubmitting an administratively removed job', async () => {
+    jobRepository.findOne.mockResolvedValue({ status: JobStatus.REMOVED });
+
+    await expect(
+      service.updateJob('job-id', { title: 'Edited title' }, 12),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.publishJob('job-id', 12)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(jobRepository.save).not.toHaveBeenCalled();
+  });
+
   it('deletes only a job associated with the employer company', async () => {
     jobRepository.findOne.mockResolvedValue({ title: 'Engineer' });
     jobRepository.remove.mockResolvedValue(undefined);
@@ -166,24 +184,24 @@ describe('JobService', () => {
     expect(jobRepository.remove).toHaveBeenCalledWith({ title: 'Engineer' });
   });
 
-  it('publishes an owned draft and rejects closed jobs', async () => {
+  it('submits an owned draft for review and rejects closed jobs', async () => {
     const job = { status: JobStatus.DRAFT } as Job;
     jobRepository.findOne.mockResolvedValue(job);
-    jobRepository.save.mockResolvedValue({ ...job, status: JobStatus.OPEN });
+    jobRepository.save.mockResolvedValue({ ...job, status: JobStatus.PENDING });
 
     await service.publishJob('job-id', 12);
 
-    expect(job.status).toBe(JobStatus.OPEN);
+    expect(job.status).toBe(JobStatus.PENDING);
     expect(jobRepository.save).toHaveBeenCalledWith(job);
 
     jobRepository.findOne.mockResolvedValue({ status: JobStatus.CLOSED });
-    await expect(
-      service.publishJob('job-id', 12),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.publishJob('job-id', 12)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('closes an owned listing', async () => {
-    const job = { status: JobStatus.OPEN } as Job;
+    const job = { status: JobStatus.APPROVED } as Job;
     jobRepository.findOne.mockResolvedValue(job);
     jobRepository.save.mockResolvedValue(job);
 
@@ -193,14 +211,14 @@ describe('JobService', () => {
     expect(jobRepository.save).toHaveBeenCalledWith(job);
   });
 
-  it('only returns open jobs to job seekers by ID', async () => {
+  it('only returns approved jobs to job seekers by ID', async () => {
     jobRepository.findOne.mockResolvedValue(null);
 
     await expect(service.getOneJob('job-id')).rejects.toBeInstanceOf(
       NotFoundException,
     );
     expect(jobRepository.findOne).toHaveBeenCalledWith({
-      where: { id: 'job-id', status: JobStatus.OPEN },
+      where: { id: 'job-id', status: JobStatus.APPROVED },
       relations: { company: true },
     });
   });

@@ -64,7 +64,9 @@ export class JobController {
   @ApiBearerAuth()
   @Roles('employer')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @ApiOperation({ summary: 'Publish an employer-owned draft job listing' })
+  @ApiOperation({
+    summary: 'Submit an employer-owned draft or rejected listing for review',
+  })
   publishJob(@Param('jobID') jobID: string, @Req() req: AuthenticatedRequest) {
     return this.jobService.publishJob(jobID, req.user.sub);
   }
@@ -102,8 +104,8 @@ export class JobController {
   @ApiBearerAuth()
   @Roles('job_seeker')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @ApiOperation({ summary: 'Retrieve all job listings' })
-  @ApiResponse({ status: 200, description: 'A list of all job listings.' })
+  @ApiOperation({ summary: 'Retrieve all approved job listings' })
+  @ApiResponse({ status: 200, description: 'A list of approved job listings.' })
   getAllJobs() {
     return this.jobService.getAllJobs();
   }

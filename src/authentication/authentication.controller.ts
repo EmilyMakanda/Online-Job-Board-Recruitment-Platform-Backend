@@ -41,6 +41,30 @@ export class AuthenticationController {
     return this.authenticationService.register(registerDto);
   }
 
+  @Post('register/employer')
+  @ApiOperation({
+    summary: 'Register an employer account',
+    description:
+      'Creates an employer account with the employer role assigned by the backend. Register the associated company separately.',
+  })
+  @ApiBody({ type: RegisterDto })
+  @ApiResponse({
+    status: 201,
+    description:
+      'Employer account created; verification code delivery status returned.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Registration details are invalid.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'An account already exists for this email.',
+  })
+  registerEmployer(@Body() registerDto: RegisterDto) {
+    return this.authenticationService.registerEmployer(registerDto);
+  }
+
   // Verify the user's email address
   @Post('verify-email')
   @ApiOperation({ summary: 'Verify an account email address' })

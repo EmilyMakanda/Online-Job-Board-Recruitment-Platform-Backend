@@ -22,8 +22,8 @@ import { CompanyService } from './company.service.js';
 import { CreateCompanyDto } from './dto/create-company.dto.js';
 import { UpdateCompanyDto } from './dto/update-company.dto.js';
 import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
-import { RolesGuard } from '../authentication/guards/role.guards.js';
-import { Roles, UserRole } from '../authentication/role.decorator.js';
+import { RolesGuard } from '../authentication/guards/roles.guards.js';
+import { Roles, UserRole } from '../authentication/roles.decorator.js';
 
 interface AuthenticatedRequest extends Request {
   user: { sub: number; email: string; role: UserRole };
@@ -41,7 +41,10 @@ export class CompanyController {
   @ApiOperation({ summary: 'Register your company (employers only)' })
   @ApiResponse({ status: 201, description: 'Company registered successfully' })
   @ApiResponse({ status: 401, description: 'Missing or invalid token' })
-  @ApiResponse({ status: 403, description: 'Only employers can register a company' })
+  @ApiResponse({
+    status: 403,
+    description: 'Only employers can register a company',
+  })
   @ApiResponse({ status: 409, description: 'Employer already has a company' })
   create(
     @Req() req: AuthenticatedRequest,
