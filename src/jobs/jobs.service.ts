@@ -58,7 +58,7 @@ export class JobService {
     const job = this.jobRepository.create({
       ...dto,
       deadline: validateDeadline(dto.deadline),
-      status: JobStatus.DRAFT,
+      status: JobStatus.PENDING,
       postedBy: user,
       company,
     });
@@ -68,11 +68,22 @@ export class JobService {
   // Updates the supplied fields for a listing.
   async updateJob(jobId: string, dto: UpdateJobDto, employerId: number) {
     const job = await this.getOneJobForEmployer(jobId, employerId);
+    if (job.status === JobStatus.REMOVED) {
+      throw new BadRequestException(
+        'An administratively removed job cannot be edited.',
+      );
+    }
 
     const { deadline, ...updates } = dto;
     const deadlineUpdate =
       deadline === undefined ? {} : { deadline: validateDeadline(deadline) };
     Object.assign(job, updates, deadlineUpdate);
+    if (
+      job.status === JobStatus.APPROVED ||
+      job.status === JobStatus.REJECTED
+    ) {
+      job.status = JobStatus.PENDING;
+    }
     return this.jobRepository.save(job);
   }
 
@@ -81,6 +92,20 @@ export class JobService {
     if (job.status === JobStatus.CLOSED) {
       throw new BadRequestException('A closed job cannot be published again.');
     }
+    if (job.status === JobStatus.REMOVED) {
+      throw new BadRequestException(
+        'An administratively removed job cannot be resubmitted.',
+      );
+    }
+    if (
+      job.status !== JobStatus.DRAFT &&
+      job.status !== JobStatus.REJECTED &&
+      job.status !== JobStatus.PENDING
+    ) {
+      throw new BadRequestException(
+        'Only draft, rejected, or pending jobs can be submitted for review.',
+      );
+    }
     if (deadlineHasPassed(job.deadline)) {
       await this.saveClosedJob(job);
       throw new BadRequestException(
@@ -88,19 +113,22 @@ export class JobService {
       );
     }
 
-    job.status = JobStatus.OPEN;
+    job.status = JobStatus.PENDING;
     return this.jobRepository.save(job);
   }
 
   async closeJob(jobId: string, employerId: number) {
     const job = await this.getOneJobForEmployer(jobId, employerId);
+    if (job.status !== JobStatus.APPROVED) {
+      throw new BadRequestException('Only approved jobs can be closed.');
+    }
     return this.saveClosedJob(job);
   }
 
-  // Returns all listings, newest first, for jobseekers.
+  // Returns only administrator-approved listings to jobseekers.
   getAllJobs() {
     return this.jobRepository.find({
-      where: { status: JobStatus.OPEN, deadline: MoreThan(new Date()) },
+      where: { status: JobStatus.APPROVED, deadline: MoreThan(new Date()) },
       relations: { company: true },
       order: { createdAt: 'DESC' },
     });
@@ -123,7 +151,7 @@ export class JobService {
     return this.jobRepository
       .createQueryBuilder('job')
       .leftJoinAndSelect('job.company', 'company')
-      .where('job.status = :status', { status: JobStatus.OPEN })
+      .where('job.status = :status', { status: JobStatus.APPROVED })
       .andWhere('job.deadline > :now', { now: new Date() })
       .andWhere(
         '(LOWER(job.title) LIKE LOWER(:term) OR LOWER(job.description) LIKE LOWER(:term) OR LOWER(job.location) LIKE LOWER(:term))',
@@ -133,10 +161,14 @@ export class JobService {
       .getMany();
   }
 
-  // Job seekers and the application flow can only retrieve available listings.
+  // Job seekers and the application flow can only retrieve approved listings.
   async getOneJob(id: string) {
     const job = await this.jobRepository.findOne({
-      where: { id, status: JobStatus.OPEN, deadline: MoreThan(new Date()) },
+      where: {
+        id,
+        status: JobStatus.APPROVED,
+        deadline: MoreThan(new Date()),
+      },
       relations: { company: true },
     });
 
@@ -150,12 +182,12 @@ export class JobService {
   @Cron(CronExpression.EVERY_MINUTE)
   closeExpiredJobs() {
     const now = new Date();
-    const expiredOpenJobs = [
-      { status: JobStatus.OPEN, deadline: LessThanOrEqual(now) },
-      { status: JobStatus.OPEN, deadline: IsNull() },
+    const expiredApprovedJobs = [
+      { status: JobStatus.APPROVED, deadline: LessThanOrEqual(now) },
+      { status: JobStatus.APPROVED, deadline: IsNull() },
     ];
 
-    return this.jobRepository.update(expiredOpenJobs, {
+    return this.jobRepository.update(expiredApprovedJobs, {
       status: JobStatus.CLOSED,
     });
   }
@@ -182,7 +214,10 @@ export class JobService {
   async deleteJob(id: string, employerId: number) {
     const job = await this.getOneJobForEmployer(id, employerId);
 
-    if (job.status === JobStatus.OPEN && deadlineHasPassed(job.deadline)) {
+    if (
+      job.status === JobStatus.APPROVED &&
+      deadlineHasPassed(job.deadline)
+    ) {
       await this.saveClosedJob(job);
     }
 

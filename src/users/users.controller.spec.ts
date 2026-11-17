@@ -19,8 +19,10 @@ describe('UsersController', () => {
     activateUser: vi.fn(),
   };
 
-  const reqFor = (sub: number, role: 'job_seeker' | 'employer' = 'job_seeker') =>
-    ({ user: { sub, email: 'a@example.com', role } }) as never;
+  const reqFor = (
+    sub: number,
+    role: 'job_seeker' | 'employer' | 'admin' = 'job_seeker',
+  ) => ({ user: { sub, email: 'a@example.com', role } }) as never;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -43,12 +45,12 @@ describe('UsersController', () => {
     expect(guards).toContain(RolesGuard);
   });
 
-  it('restricts the user list to employers', () => {
+  it('restricts the user list to administrators', () => {
     const roles = Reflect.getMetadata(
       ROLES_KEY,
       UsersController.prototype.findAll,
     );
-    expect(roles).toEqual(['employer']);
+    expect(roles).toEqual(['admin']);
   });
 
   it('restricts account status actions to administrators', () => {
@@ -64,10 +66,10 @@ describe('UsersController', () => {
     usersService.deactivateUser.mockResolvedValue({ message: 'deactivated' });
     usersService.activateUser.mockResolvedValue({ message: 'activated' });
 
-    await controller.deactivate(8);
+    await controller.deactivate(8, reqFor(9, 'admin'));
     await controller.activate(8);
 
-    expect(usersService.deactivateUser).toHaveBeenCalledWith(8);
+    expect(usersService.deactivateUser).toHaveBeenCalledWith(8, 9);
     expect(usersService.activateUser).toHaveBeenCalledWith(8);
   });
 
@@ -75,11 +77,15 @@ describe('UsersController', () => {
     it('returns your own profile', async () => {
       usersService.findUser.mockResolvedValue({ id: 5 });
 
-      await expect(controller.findOne(5, reqFor(5))).resolves.toEqual({ id: 5 });
+      await expect(controller.findOne(5, reqFor(5))).resolves.toEqual({
+        id: 5,
+      });
     });
 
     it("forbids viewing someone else's profile", () => {
-      expect(() => controller.findOne(6, reqFor(5))).toThrow(ForbiddenException);
+      expect(() => controller.findOne(6, reqFor(5))).toThrow(
+        ForbiddenException,
+      );
       expect(usersService.findUser).not.toHaveBeenCalled();
     });
   });

@@ -44,7 +44,7 @@ export class ApplicationsService {
   ): Promise<Application> {
     const job = await this.jobService.getOneJob(createApplicationDto.jobId);
 
-    if (job.status !== JobStatus.OPEN) {
+    if (job.status !== JobStatus.APPROVED) {
       throw new BadRequestException('This job is not accepting applications.');
     }
 

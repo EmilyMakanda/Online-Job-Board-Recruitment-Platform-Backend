@@ -91,6 +91,18 @@ For the disposable local database where synchronization is enabled, TypeORM
 uses the `User` entity definition to add the column. Do not enable
 `DB_SYNCHRONIZE` on production databases just to apply this change.
 
+Admin moderation adds no job columns; existing `JOBS.STATUS` values fit the
+existing `VARCHAR2` column. Before deploying with synchronization disabled,
+apply the Oracle-compatible TypeORM migration in
+`src/database/migrations/20261116100000-AdminModerationAndReports.ts` with
+`npm run migration:run` after setting the existing `DB_*` environment values.
+It changes existing `OPEN` jobs to `APPROVED` so their visibility is preserved
+and creates the `REPORTS` table and status index. This project does not
+automatically execute migrations at startup; do not enable schema
+synchronization in production as a substitute. The standalone TypeORM CLI
+reads `DB_*` values from the process environment; export them before invoking
+the migration command if they are otherwise only stored in a local `.env`.
+
 ---
 
 ## 🚨 Troubleshooting Guide ("If Anything Breaks")
