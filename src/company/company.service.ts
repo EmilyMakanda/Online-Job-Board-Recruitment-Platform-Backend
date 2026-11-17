@@ -48,11 +48,6 @@ export class CompanyService {
       employerId,
     });
     const saved = await this.companyRepository.save(company);
-
-    await this.userRepository.update(employerId, {
-      companyId: saved.companyId,
-    });
-
     return saved;
   }
 
@@ -60,7 +55,7 @@ export class CompanyService {
     return this.companyRepository.find();
   }
 
-  async findOne(companyId: number): Promise<Company> {
+  async findOne(companyId: string): Promise<Company> {
     const company = await this.companyRepository.findOneBy({ companyId });
 
     if (!company) {
@@ -71,7 +66,7 @@ export class CompanyService {
   }
 
   async update(
-    companyId: number,
+    companyId: string,
     requesterId: number,
     updateCompanyDto: UpdateCompanyDto,
   ): Promise<Company> {
@@ -92,14 +87,11 @@ export class CompanyService {
     return this.companyRepository.save(company);
   }
 
-  async remove(companyId: number, requesterId: number): Promise<void> {
+  async remove(companyId: string, requesterId: number): Promise<void> {
     const company = await this.findOne(companyId);
 
     if (company.employerId !== requesterId) {
       throw new ForbiddenException('You can only delete your own company');
     }
-
-    await this.companyRepository.remove(company);
-    await this.userRepository.update(requesterId, { companyId: null });
   }
 }

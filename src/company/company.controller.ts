@@ -7,6 +7,7 @@ import {
   Patch,
   Delete,
   ParseIntPipe,
+  ParseUUIDPipe,
   UseGuards,
   Req,
 } from '@nestjs/common';
@@ -59,7 +60,7 @@ export class CompanyController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a company by ID' })
   @ApiResponse({ status: 404, description: 'Company not found' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.companyService.findOne(id);
   }
 
@@ -68,7 +69,7 @@ export class CompanyController {
   @ApiOperation({ summary: 'Update your company (owner only)' })
   @ApiResponse({ status: 403, description: 'Not the owner of this company' })
   update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthenticatedRequest,
     @Body() updateCompanyDto: UpdateCompanyDto,
   ) {
@@ -80,7 +81,7 @@ export class CompanyController {
   @ApiOperation({ summary: 'Delete your company (owner only)' })
   @ApiResponse({ status: 403, description: 'Not the owner of this company' })
   remove(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthenticatedRequest,
   ) {
     return this.companyService.remove(id, req.user.sub);

@@ -76,7 +76,7 @@ async getPendingCompanies() {
 }
 
 async updateCompanyVerification(
-  id: number,
+  id: string,
   dto: UpdateCompanyVerificationDto,
 ) {
   const company = await this.companyRepository.findOneBy({

@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  ParseUUIDPipe,
    Body,
   Patch,
 } from '@nestjs/common';
@@ -40,7 +41,7 @@ getPendingCompanies() {
 @Patch('companies/:id/verify')
 @ApiOperation({ summary: 'Verify or reject a company' })
 updateCompanyVerification(
-  @Param('id', ParseIntPipe) id: number,
+  @Param('id', ParseUUIDPipe) id: string,
   @Body() dto: UpdateCompanyVerificationDto,
 ) {
   return this.adminService.updateCompanyVerification(id, dto);

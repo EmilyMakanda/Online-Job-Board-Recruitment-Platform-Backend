@@ -20,7 +20,6 @@ const PUBLIC_USER_FIELDS: FindOptionsSelect<User> = {
   resumeUrl: true,
   skills: true,
   role: true,
-  companyId: true,
   isEmailVerified: true,
   createdAt: true,
 };
