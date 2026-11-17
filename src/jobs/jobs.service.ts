@@ -4,14 +4,30 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
 import { CreateJobDto } from './dto/create-job.dto.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
-import { Job } from './entities/jobs.entity.js';
-import { JobStatus } from './entities/jobs.entity.js';
+import { Job, JobStatus } from './entities/jobs.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
 import { Company } from '../company/entities/company.entity.js';
+
+function deadlineHasPassed(deadline: Date | null, now = new Date()): boolean {
+  return deadline === null || deadline <= now;
+}
+
+function validateDeadline(deadline: Date): Date {
+  if (
+    !(deadline instanceof Date) ||
+    Number.isNaN(deadline.getTime()) ||
+    deadlineHasPassed(deadline)
+  ) {
+    throw new BadRequestException('The job deadline must be in the future.');
+  }
+
+  return deadline;
+}
 
 @Injectable()
 export class JobService {
@@ -41,6 +57,7 @@ export class JobService {
 
     const job = this.jobRepository.create({
       ...dto,
+      deadline: validateDeadline(dto.deadline),
       status: JobStatus.PENDING,
       postedBy: user,
       company,
@@ -57,7 +74,10 @@ export class JobService {
       );
     }
 
-    Object.assign(job, dto);
+    const { deadline, ...updates } = dto;
+    const deadlineUpdate =
+      deadline === undefined ? {} : { deadline: validateDeadline(deadline) };
+    Object.assign(job, updates, deadlineUpdate);
     if (
       job.status === JobStatus.APPROVED ||
       job.status === JobStatus.REJECTED
@@ -83,7 +103,13 @@ export class JobService {
       job.status !== JobStatus.PENDING
     ) {
       throw new BadRequestException(
-        'Only draft or rejected jobs can be submitted for review.',
+        'Only draft, rejected, or pending jobs can be submitted for review.',
+      );
+    }
+    if (deadlineHasPassed(job.deadline)) {
+      await this.saveClosedJob(job);
+      throw new BadRequestException(
+        'A job cannot be published after its application deadline.',
       );
     }
 
@@ -96,14 +122,13 @@ export class JobService {
     if (job.status !== JobStatus.APPROVED) {
       throw new BadRequestException('Only approved jobs can be closed.');
     }
-    job.status = JobStatus.CLOSED;
-    return this.jobRepository.save(job);
+    return this.saveClosedJob(job);
   }
 
   // Returns only administrator-approved listings to jobseekers.
   getAllJobs() {
     return this.jobRepository.find({
-      where: { status: JobStatus.APPROVED },
+      where: { status: JobStatus.APPROVED, deadline: MoreThan(new Date()) },
       relations: { company: true },
       order: { createdAt: 'DESC' },
     });
@@ -127,6 +152,7 @@ export class JobService {
       .createQueryBuilder('job')
       .leftJoinAndSelect('job.company', 'company')
       .where('job.status = :status', { status: JobStatus.APPROVED })
+      .andWhere('job.deadline > :now', { now: new Date() })
       .andWhere(
         '(LOWER(job.title) LIKE LOWER(:term) OR LOWER(job.description) LIKE LOWER(:term) OR LOWER(job.location) LIKE LOWER(:term))',
         { term: `%${normalizedName}%` },
@@ -138,7 +164,11 @@ export class JobService {
   // Job seekers and the application flow can only retrieve approved listings.
   async getOneJob(id: string) {
     const job = await this.jobRepository.findOne({
-      where: { id, status: JobStatus.APPROVED },
+      where: {
+        id,
+        status: JobStatus.APPROVED,
+        deadline: MoreThan(new Date()),
+      },
       relations: { company: true },
     });
 
@@ -147,6 +177,19 @@ export class JobService {
     }
 
     return job;
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  closeExpiredJobs() {
+    const now = new Date();
+    const expiredApprovedJobs = [
+      { status: JobStatus.APPROVED, deadline: LessThanOrEqual(now) },
+      { status: JobStatus.APPROVED, deadline: IsNull() },
+    ];
+
+    return this.jobRepository.update(expiredApprovedJobs, {
+      status: JobStatus.CLOSED,
+    });
   }
 
   async getOneJobForEmployer(id: string, employerId: number) {
@@ -162,9 +205,25 @@ export class JobService {
     return job;
   }
 
+  private saveClosedJob(job: Job) {
+    job.status = JobStatus.CLOSED;
+    return this.jobRepository.save(job);
+  }
+
   // Deletes a listing by ID.
   async deleteJob(id: string, employerId: number) {
     const job = await this.getOneJobForEmployer(id, employerId);
+
+    if (
+      job.status === JobStatus.APPROVED &&
+      deadlineHasPassed(job.deadline)
+    ) {
+      await this.saveClosedJob(job);
+    }
+
+    if (job.status === JobStatus.CLOSED) {
+      throw new BadRequestException('A closed job cannot be deleted.');
+    }
 
     await this.jobRepository.remove(job);
     return { message: `Job "${job.title}" successfully deleted` };
