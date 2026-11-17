@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDate, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateJobDto {
@@ -32,4 +33,16 @@ export class CreateJobDto {
   @IsNotEmpty()
   @MaxLength(100)
   location: string;
+
+  @ApiProperty({
+    description:
+      'The date and time after which the job is no longer available.',
+    example: '2026-12-31T23:59:59.000Z',
+    type: String,
+    format: 'date-time',
+  })
+  @IsNotEmpty()
+  @Type(() => Date)
+  @IsDate()
+  deadline: Date;
 }
