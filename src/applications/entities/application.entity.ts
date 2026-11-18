@@ -1,5 +1,6 @@
-import{ Entity,PrimaryGeneratedColumn, Column, CreateDateColumn, type Relation, ManyToOne, JoinColumn} from 'typeorm';
+import{ Entity,PrimaryGeneratedColumn, Column, CreateDateColumn, type Relation, ManyToOne,  OneToMany, JoinColumn} from 'typeorm';
 import { Job } from '../../jobs/entities/jobs.entity.js';
+import { ApplicationDocument } from './application-document.entity.js';
 
 export enum ApplicationStatus{
     SUBMITTED = 'SUBMITTED',
@@ -27,25 +28,30 @@ export class Application{
         name: 'STATUS',
         type: 'varchar2',
         length: 30,
-        default: 'SUBMITTED',
+        default: ApplicationStatus.SUBMITTED
     })
-    status: string;
+    status: ApplicationStatus;
 
     @Column({
       name: 'COVER_LETTER',  
       type: 'varchar2',
-      length: 255,
+      length: 2000,
       nullable: true,
     })
-     coverLetter: string;
+     coverLetter: string | null;
+
     @CreateDateColumn({
         name: 'APPLIED_AT',
         type: 'timestamp',
     })
     appliedAt: Date
 
-    @ManyToOne(() => Job, (job) => job.applications, { nullable: false })
+    @ManyToOne(() => Job, (job) => job.applications, { nullable: false, onDelete: 'CASCADE' })
     @JoinColumn({ name: 'JOB_ID', referencedColumnName: 'id' })
     job: Relation<Job>;
+
+    @OneToMany(() => ApplicationDocument, (document) => document.application, { cascade: false,
+     })  
+     documents: Relation<ApplicationDocument[]>;
     
 }

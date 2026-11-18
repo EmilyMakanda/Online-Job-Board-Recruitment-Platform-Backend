@@ -1,4 +1,4 @@
-
+import * as typeorm from 'typeorm';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -65,4 +65,19 @@ createdAt: Date;
   type: 'timestamp',
 })
 updatedAt: Date;
+
+@typeorm.ManyToOne(
+  () => Company,
+  (company) => company.employerId,
+  {
+    nullable: true,
+    onDelete: 'SET NULL',
+    createForeignKeyConstraints: false,
+  },
+)
+@typeorm.JoinColumn({
+  name: 'companyId',
+  referencedColumnName: 'companyId',
+})
+company: typeorm.Relation<Company> | null;
 }
