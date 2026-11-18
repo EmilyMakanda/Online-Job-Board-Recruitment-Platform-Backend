@@ -5,7 +5,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity.js';
-import { UserRole } from '../roles.decorator.js';
+import type { UserRole } from '../roles.decorator.js';
 
 interface JwtPayload {
   sub: number;
@@ -39,7 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user || user.isActive !== 1) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException('Account is inactive or does not exist');
     }
 
     return {

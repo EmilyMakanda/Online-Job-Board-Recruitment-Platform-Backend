@@ -1,4 +1,3 @@
-
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -14,6 +13,8 @@ import { UsersModule } from './users/users.module.js';
 import { CompanyModule } from './company/company.module.js';
 import { NotificationsModule } from './notification/notification.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { ReportsModule } from './reports/reports.module.js';
+import { AdminModerationAndReports20261116100000 } from './database/migrations/20261116100000-AdminModerationAndReports.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -43,6 +44,8 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
         serviceName: config.get<string>('DB_SERVICE_NAME'),
         username: config.get<string>('DB_USERNAME'),
         password: config.get<string>('DB_PASSWORD'),
+        migrations: [AdminModerationAndReports20261116100000],
+        migrationsRun: false,
         autoLoadEntities: true,
         synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
       }),
@@ -65,6 +68,9 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
     CompanyModule,
     NotificationsModule,
     AdminModule,
+    ReportsModule,
+    ApplicationsModule,
+    CompanyModule,
   ],
   controllers: [AppController],
   providers: [AppService],

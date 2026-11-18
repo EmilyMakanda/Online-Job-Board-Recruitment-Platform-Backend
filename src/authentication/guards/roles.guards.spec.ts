@@ -45,6 +45,9 @@ describe('RolesGuard', () => {
     expect(() => guard.canActivate(createContext('employer'))).toThrow(
       'You do not have permission to access this resource.',
     );
+    expect(() => guard.canActivate(createContext('job_seeker'))).toThrow(
+      'You do not have permission to access this resource.',
+    );
   });
 
   it('rejects users without a required role', () => {

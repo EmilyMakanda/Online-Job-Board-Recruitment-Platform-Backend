@@ -2,14 +2,15 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsSelect } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from '../authentication/entities/user.entity.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
-
 
 const PUBLIC_USER_FIELDS: FindOptionsSelect<User> = {
   id: true,
@@ -53,8 +54,14 @@ export class UsersService {
     return this.userRepository.findOneByOrFail({ id: saved.id });
   }
 
-  async findAllUsers() {
-    return this.userRepository.find({ select: PUBLIC_USER_FIELDS });
+  async findAllUsers(
+    pagination: PaginationQueryDto = new PaginationQueryDto(),
+  ) {
+    return this.userRepository.find({
+      select: PUBLIC_USER_FIELDS,
+      skip: (pagination.page - 1) * pagination.limit,
+      take: pagination.limit,
+    });
   }
 
   async findUser(id: number) {
@@ -88,7 +95,13 @@ export class UsersService {
     return { message: `User with ID ${id} deleted successfully` };
   }
 
-  async deactivateUser(id: number) {
+  async deactivateUser(id: number, requesterId: number) {
+    if (id === requesterId) {
+      throw new ForbiddenException(
+        'Administrators cannot deactivate their own account.',
+      );
+    }
+
     const user = await this.userRepository.findOne({
       where: { id },
       select: { id: true, isActive: true },

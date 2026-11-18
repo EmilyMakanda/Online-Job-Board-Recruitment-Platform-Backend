@@ -6,6 +6,7 @@ export class UpdateCompanyVerificationDto {
     example: 'verified',
     enum: ['verified', 'rejected'],
     description: 'Admin decision for the company',
+    type: String,
   })
   @IsIn(['verified', 'rejected'])
   verificationStatus: 'verified' | 'rejected';

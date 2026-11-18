@@ -45,16 +45,37 @@ Authorization: Bearer <access_token>
 
 Tokens are signed with `JWT_SECRET` and expire after one day. Each protected
 request also reloads the account from Oracle, so deleted or deactivated users
-cannot continue using an existing token. Registration, email verification, and
-login remain public so users can obtain an access token. Creating, updating,
-and deleting job listings require a valid token belonging to an `employer`;
-listing and retrieving jobs remain public.
+cannot continue using an existing token. Job-seeker registration is available
+at `POST /authentication/register`; employer registration is available at
+`POST /authentication/register/employer`. The backend assigns these roles
+without accepting a role from the request. Employers create and manage their
+company separately through `/companies`. Email verification and login remain
+public so users can obtain an access token.
 
-The `PATCH /users/:id/deactivate` and `PATCH /users/:id/activate` endpoints
-require an `admin` token. Public registration accepts only `job_seeker` and
-`employer`; an administrator must be provisioned by a trusted operator by
-updating the intended user's `role` in Oracle. Do not expose administrator role
-assignment through public registration or profile updates.
+Job postings are created in a pending state. Only administrators can approve
+them, after which they become visible to job seekers. Employers can access only
+their own postings and their job applications.
+
+All `/admin` endpoints require a JWT whose current database role is `admin`.
+Administrators can manage accounts, employers/companies, job moderation,
+applications, reports, and statistics. The endpoints
+`PATCH /admin/users/:id/activate` and `PATCH /admin/users/:id/deactivate`
+manage account activity; an administrator cannot deactivate their own account.
+Admin collection endpoints and `GET /users` accept `page` (default `1`) and
+`limit` (default `50`, maximum `100`) query parameters; results remain arrays
+and are ordered newest first.
+Public registration and profile updates never assign roles. Create or promote
+the first administrator through a trusted operator/database process; do not
+expose administrator role assignment in the public API.
+
+Authenticated job seekers and employers can submit a report through
+`POST /reports`. Administrators review reports through `GET /admin/reports`
+and resolve or dismiss them with `PATCH /admin/reports/:id/status`.
+
+The Swagger UI is served at `http://localhost:3000/api/docs` by default (or
+the configured `PORT`). Use **Authorize** with the access token returned by
+`POST /authentication/login`; enter the token value without adding a `Bearer`
+prefix because Swagger supplies the bearer scheme.
 
 `POST /authentication/logout` requires a bearer token. Access tokens are
 stateless and are not revoked by this endpoint, so the client must discard its
