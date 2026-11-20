@@ -48,6 +48,7 @@ export class CompanyService {
       employerId,
     });
     const saved = await this.companyRepository.save(company);
+
     return saved;
   }
 
@@ -93,5 +94,6 @@ export class CompanyService {
     if (company.employerId !== requesterId) {
       throw new ForbiddenException('You can only delete your own company');
     }
+    await this.companyRepository.remove(company);
   }
 }
