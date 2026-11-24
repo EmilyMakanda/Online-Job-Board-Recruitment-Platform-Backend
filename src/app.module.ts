@@ -45,7 +45,7 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
         migrations: [AdminModerationAndReports20261116100000],
         migrationsRun: false,
         autoLoadEntities: true,
-        synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
+        synchronize: config.get<string>('DB_SYNCHRONIZE') !== 'false',
       }),
     }),
 
