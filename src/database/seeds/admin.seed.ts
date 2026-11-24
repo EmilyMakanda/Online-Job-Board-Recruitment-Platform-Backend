@@ -88,7 +88,6 @@ export async function seedAdmin(
       resumeUrl: null,
       location: null,
       skills: null,
-      companyId: null,
       emailVerificationTokenHash: null,
       emailVerificationTokenExpiresAt: null,
     });

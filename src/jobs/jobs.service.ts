@@ -11,7 +11,10 @@ import { CreateJobDto } from './dto/create-job.dto.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
 import { Job, JobStatus } from './entities/jobs.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
-import { Company } from '../company/entities/company.entity.js';
+import {
+  Company,
+  VerificationStatus,
+} from '../company/entities/company.entity.js';
 
 function deadlineHasPassed(deadline: Date | null, now = new Date()): boolean {
   return deadline === null || deadline <= now;
@@ -63,7 +66,7 @@ export class JobService {
         'An employer must have an associated company before creating a job.',
       );
     }
-    if (company.verificationStatus !== 'verified') {
+    if (company.verificationStatus !== VerificationStatus.VERIFIED) {
       throw new ForbiddenException(
         'The company must be verified before it can post jobs.',
       );
@@ -141,7 +144,7 @@ export class JobService {
         'Only draft, rejected, or pending jobs can be submitted for review.',
       );
     }
-    if (job.company.verificationStatus !== 'verified') {
+    if (job.company.verificationStatus !== VerificationStatus.VERIFIED) {
       throw new ForbiddenException(
         'The company must be verified before publishing jobs.',
       );
@@ -171,7 +174,7 @@ export class JobService {
       where: {
         status: JobStatus.APPROVED,
         deadline: MoreThan(new Date()),
-        company: { verificationStatus: 'verified' },
+        company: { verificationStatus: VerificationStatus.VERIFIED},
       },
       relations: { company: true },
       order: { createdAt: 'DESC' },
@@ -230,7 +233,7 @@ export class JobService {
         id,
         status: JobStatus.APPROVED,
         deadline: MoreThan(new Date()),
-        company: { verificationStatus: 'verified' },
+        company: { verificationStatus:VerificationStatus.VERIFIED },
       },
       relations: { company: true },
     });
