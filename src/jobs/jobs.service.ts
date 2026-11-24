@@ -11,22 +11,34 @@ import { CreateJobDto } from './dto/create-job.dto.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
 import { Job, JobStatus } from './entities/jobs.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
-import { Company } from '../company/entities/company.entity.js';
+import {
+  Company,
+  VerificationStatus,
+} from '../company/entities/company.entity.js';
 
 function deadlineHasPassed(deadline: Date | null, now = new Date()): boolean {
   return deadline === null || deadline <= now;
 }
 
-function validateDeadline(deadline: Date): Date {
+function validateDeadline(deadline: Date | string): Date {
+  const parsedDeadline =
+    deadline instanceof Date ? deadline : new Date(deadline);
   if (
-    !(deadline instanceof Date) ||
-    Number.isNaN(deadline.getTime()) ||
-    deadlineHasPassed(deadline)
+    Number.isNaN(parsedDeadline.getTime()) ||
+    deadlineHasPassed(parsedDeadline)
   ) {
     throw new BadRequestException('The job deadline must be in the future.');
   }
 
-  return deadline;
+  return parsedDeadline;
+}
+
+function requiredTrimmedText(value: string, field: string): string {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    throw new BadRequestException(`${field} cannot be empty.`);
+  }
+  return trimmedValue;
 }
 
 @Injectable()
@@ -54,9 +66,17 @@ export class JobService {
         'An employer must have an associated company before creating a job.',
       );
     }
+    if (company.verificationStatus !== VerificationStatus.VERIFIED) {
+      throw new ForbiddenException(
+        'The company must be verified before it can post jobs.',
+      );
+    }
 
     const job = this.jobRepository.create({
       ...dto,
+      title: requiredTrimmedText(dto.title, 'Title'),
+      description: requiredTrimmedText(dto.description, 'Description'),
+      location: requiredTrimmedText(dto.location, 'Location'),
       deadline: validateDeadline(dto.deadline),
       status: JobStatus.PENDING,
       postedBy: user,
@@ -68,16 +88,34 @@ export class JobService {
   // Updates the supplied fields for a listing.
   async updateJob(jobId: string, dto: UpdateJobDto, employerId: number) {
     const job = await this.getOneJobForEmployer(jobId, employerId);
-    if (job.status === JobStatus.REMOVED) {
+    if (job.status === JobStatus.CLOSED || job.status === JobStatus.REMOVED) {
       throw new BadRequestException(
-        'An administratively removed job cannot be edited.',
+        'A closed or removed job cannot be edited.',
       );
     }
 
-    const { deadline, ...updates } = dto;
-    const deadlineUpdate =
-      deadline === undefined ? {} : { deadline: validateDeadline(deadline) };
-    Object.assign(job, updates, deadlineUpdate);
+    if (
+      dto.title === undefined &&
+      dto.description === undefined &&
+      dto.location === undefined &&
+      dto.deadline === undefined
+    ) {
+      throw new BadRequestException('At least one job field must be updated.');
+    }
+
+    if (dto.title !== undefined) {
+      job.title = requiredTrimmedText(dto.title, 'Title');
+    }
+    if (dto.description !== undefined) {
+      job.description = requiredTrimmedText(dto.description, 'Description');
+    }
+    if (dto.location !== undefined) {
+      job.location = requiredTrimmedText(dto.location, 'Location');
+    }
+    if (dto.deadline !== undefined) {
+      job.deadline = validateDeadline(dto.deadline);
+    }
+
     if (
       job.status === JobStatus.APPROVED ||
       job.status === JobStatus.REJECTED
@@ -106,6 +144,11 @@ export class JobService {
         'Only draft, rejected, or pending jobs can be submitted for review.',
       );
     }
+    if (job.company.verificationStatus !== VerificationStatus.VERIFIED) {
+      throw new ForbiddenException(
+        'The company must be verified before publishing jobs.',
+      );
+    }
     if (deadlineHasPassed(job.deadline)) {
       await this.saveClosedJob(job);
       throw new BadRequestException(
@@ -128,7 +171,11 @@ export class JobService {
   // Returns only administrator-approved listings to jobseekers.
   getAllJobs() {
     return this.jobRepository.find({
-      where: { status: JobStatus.APPROVED, deadline: MoreThan(new Date()) },
+      where: {
+        status: JobStatus.APPROVED,
+        deadline: MoreThan(new Date()),
+        company: { verificationStatus: VerificationStatus.VERIFIED},
+      },
       relations: { company: true },
       order: { createdAt: 'DESC' },
     });
@@ -142,23 +189,41 @@ export class JobService {
     });
   }
 
-  searchJobsByName(name: string) {
+  searchJobsByName(name: string, location?: string) {
     const normalizedName = name?.trim();
-    if (!normalizedName) {
-      throw new BadRequestException('A job name is required for searching.');
+    const normalizedLocation = location?.trim();
+    if (!normalizedName && !normalizedLocation) {
+      throw new BadRequestException('A search term or location is required.');
+    }
+    if (
+      (normalizedName && normalizedName.length > 100) ||
+      (normalizedLocation && normalizedLocation.length > 100)
+    ) {
+      throw new BadRequestException('Search filters are too long.');
     }
 
-    return this.jobRepository
+    const query = this.jobRepository
       .createQueryBuilder('job')
       .leftJoinAndSelect('job.company', 'company')
       .where('job.status = :status', { status: JobStatus.APPROVED })
       .andWhere('job.deadline > :now', { now: new Date() })
-      .andWhere(
+      .andWhere('company.verificationStatus = :companyStatus', {
+        companyStatus: 'verified',
+      });
+
+    if (normalizedName) {
+      query.andWhere(
         '(LOWER(job.title) LIKE LOWER(:term) OR LOWER(job.description) LIKE LOWER(:term) OR LOWER(job.location) LIKE LOWER(:term))',
         { term: `%${normalizedName}%` },
-      )
-      .orderBy('job.createdAt', 'DESC')
-      .getMany();
+      );
+    }
+    if (normalizedLocation) {
+      query.andWhere('LOWER(job.location) LIKE LOWER(:location)', {
+        location: `%${normalizedLocation}%`,
+      });
+    }
+
+    return query.orderBy('job.createdAt', 'DESC').getMany();
   }
 
   // Job seekers and the application flow can only retrieve approved listings.
@@ -168,6 +233,7 @@ export class JobService {
         id,
         status: JobStatus.APPROVED,
         deadline: MoreThan(new Date()),
+        company: { verificationStatus:VerificationStatus.VERIFIED },
       },
       relations: { company: true },
     });
@@ -213,19 +279,18 @@ export class JobService {
   // Deletes a listing by ID.
   async deleteJob(id: string, employerId: number) {
     const job = await this.getOneJobForEmployer(id, employerId);
-
-    if (
-      job.status === JobStatus.APPROVED &&
-      deadlineHasPassed(job.deadline)
-    ) {
+    if (job.status === JobStatus.REMOVED) {
+      return {
+        message: 'The job has already been removed from public listings.',
+        job,
+      };
+    }
+    if (job.status !== JobStatus.CLOSED) {
       await this.saveClosedJob(job);
     }
-
-    if (job.status === JobStatus.CLOSED) {
-      throw new BadRequestException('A closed job cannot be deleted.');
-    }
-
-    await this.jobRepository.remove(job);
-    return { message: `Job "${job.title}" successfully deleted` };
+    return {
+      message: 'The job was closed and retained with its application history.',
+      job,
+    };
   }
 }

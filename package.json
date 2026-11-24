@@ -20,7 +20,8 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts"
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "seed:admin": "node --env-file-if-exists=.env dist/database/seeds/run-admin-seed.js"
   },
   "dependencies": {
     "@nestjs/bullmq": "^12.0.0",
@@ -41,7 +42,7 @@
     "class-validator": "^0.15.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "multer": "^2.4.0",
+    "multer": "^2.5.0",
     "nodemailer": "^10.1.7",
     "oracledb": "^7.0.1",
     "passport": "^0.7.0",

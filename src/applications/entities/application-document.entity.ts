@@ -11,6 +11,7 @@ import { Application } from './application.entity.js';
 
 export enum ApplicationDocumentType {
   CV = 'CV',
+  COVER_LETTER = 'COVER_LETTER',
   SUPPORTING = 'SUPPORTING',
 }
 
@@ -22,7 +23,7 @@ export class ApplicationDocument {
   @Column({ name: 'APPLICATION_ID', type: 'number' })
   applicationId: number;
 
-  @Column({ name: 'DOCUMENT_TYPE', type: 'varchar2', length: 20 })
+  @Column({ name: 'DOCUMENT_TYPE', type: 'varchar2', length: 50 })
   documentType: ApplicationDocumentType;
 
   @Column({ name: 'ORIGINAL_NAME', type: 'varchar2', length: 255 })
