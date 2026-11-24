@@ -4,13 +4,9 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
-  ManyToOne,
   OneToMany,
-  JoinColumn,
   type Relation,
 } from 'typeorm';
-
-import { Company } from '../../company/entities/company.entity.js';
 import { Job } from '../../jobs/entities/jobs.entity.js';
 <<<<<<< HEAD
 import { type UserRole } from '../roles.decorator.js';
@@ -57,17 +53,6 @@ export class User {
     default: 'job_seeker',
   })
   role: UserRole;
-
-  @Column({
-    name: 'COMPANY_ID',
-    type: 'number',
-    nullable: true,
-  })
-  companyId: number | null;
-
-  @ManyToOne(() => Company, { onDelete: 'SET NULL', nullable: true })
-  @JoinColumn({ name: 'COMPANY_ID' })
-  company: Relation<Company> | null;
 
   @Column({ type: 'number', default: 0 })
   isEmailVerified: number;

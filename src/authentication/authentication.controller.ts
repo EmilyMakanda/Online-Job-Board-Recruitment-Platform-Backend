@@ -110,7 +110,7 @@ export class AuthenticationController {
   @ApiBearerAuth()
   @ApiHeader({
     name: 'Authorization',
-    description: 'JWT access token returned by POST /authentication/login',
+    description: 'JWT access token returned by POST /api/v1/authentication/login',
     required: true,
     example: 'Bearer YOUR_ACCESS_TOKEN',
   })
