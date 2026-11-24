@@ -12,7 +12,7 @@ export class UpdateApplicationDto {
   @ApiProperty({
     enum: REVIEW_STATUSES,
     example: ApplicationStatus.IN_REVIEW,
-    description: 'Status selected by the employer reviewing this application',
+    description: ' The status selected by the employer reviewing this application',
   })
   @IsIn(REVIEW_STATUSES)
   status:(typeof REVIEW_STATUSES)[number];

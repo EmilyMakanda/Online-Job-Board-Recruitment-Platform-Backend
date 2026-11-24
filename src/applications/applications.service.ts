@@ -1,4 +1,3 @@
-
 import {
   BadRequestException,
   ConflictException,
@@ -7,32 +6,25 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
-
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-
 import {
   existsSync,
   mkdirSync,
   unlinkSync,
 } from 'node:fs';
-
 import { basename, join } from 'node:path';
 import type { Express } from 'express';
-
 import {
   Application,
   ApplicationStatus,
 } from './entities/application.entity.js';
-
 import {
   ApplicationDocument,
   ApplicationDocumentType,
 } from './entities/application-document.entity.js';
-
 import { CreateApplicationDto } from './dto/create-application.dto.js';
 import type { UpdateApplicationDto } from './dto/update-application.dto.js';
-
 import { JobService } from '../jobs/jobs.service.js';
 import { JobStatus } from '../jobs/entities/jobs.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
@@ -68,110 +60,147 @@ export class ApplicationsService {
   }
 
   // Submit a new application with CV and supporting documents
-  async create(
-    dto: CreateApplicationDto,
-    jobSeekerId: number,
-    cv: Express.Multer.File,
-    supportingFiles: Express.Multer.File[] = [],
-  ): Promise<Application> {
-    if (!cv) {
-      throw new BadRequestException('CV is required for application.');
-    }
 
-    const job = await this.jobService.getOneJob(dto.jobId);
+async create(
+  dto: CreateApplicationDto,
+  jobSeekerId: number,
+  cv: Express.Multer.File,
+  supportingFiles: Express.Multer.File[] = [],
+  coverLetterFile?: Express.Multer.File,
+): Promise<Application> {
 
-    if (job.status !== JobStatus.OPEN) {
-      throw new BadRequestException(
-        'This job is not accepting applications.',
-      );
-    }
+  if (!cv) {
+    throw new BadRequestException('CV is required for application.');
+  }
 
-    // Prevent duplicate applications
-    const existingApplication = await this.applicationRepository.findOne({
-      where: {
-        job: { id: job.id },
-        jobSeekerId,
-      },
-    });
+  const job = await this.jobService.getOneJob(dto.jobId);
 
-    if (existingApplication) {
-      throw new ConflictException(
-        'You have already applied for this job.',
-      );
-    }
+  if (job.status !== JobStatus.OPEN) {
+    throw new BadRequestException(
+      'This job is not accepting applications.',
+    );
+  }
 
-    const application = this.applicationRepository.create({
-      job,
+  // Prevent duplicate applications
+  const existingApplication = await this.applicationRepository.findOne({
+    where: {
+      job: { id: job.id },
       jobSeekerId,
-      coverLetter: dto.coverLetter?.trim() || '',
-      status: ApplicationStatus.SUBMITTED,
-    });
+    },
+  });
 
-    const saved = await this.applicationRepository.save(application);
+  if (existingApplication) {
+    throw new ConflictException(
+      'You have already applied for this job.',
+    );
+  }
 
-    try {
-      const cvRecord = this.saveDocument(
+  // Create application with applicant information
+  const application = this.applicationRepository.create({
+    job,
+    jobSeekerId,
+    status: ApplicationStatus.SUBMITTED,
+
+    coverLetter: dto.coverLetter?.trim() || null,
+
+    highestEducation: dto.highestEducation,
+    fieldOfStudy: dto.fieldOfStudy,
+    yearsOfExperience: dto.yearsOfExperience,
+    currentEmploymentStatus: dto.currentEmploymentStatus,
+    expectedSalary: dto.expectedSalary,
+    noticePeriod: dto.noticePeriod,
+
+    availableStartDate: dto.availableStartDate
+      ? new Date(dto.availableStartDate)
+      : null,
+
+    willingToRelocate:
+      dto.willingToRelocate === undefined
+        ? null
+        : dto.willingToRelocate
+          ? 1
+          : 0,
+
+    portfolioUrl: dto.portfolioUrl,
+    linkedinUrl: dto.linkedinUrl,
+    additionalAnswers: dto.additionalAnswers || null,
+  });
+
+  // Track files so they can be cleaned up if saving fails
+  const uploadedFiles = [
+    cv,
+    ...(coverLetterFile ? [coverLetterFile] : []),
+    ...supportingFiles,
+  ];
+
+let saved: Application | null = null;
+
+  try { 
+    saved = await this.applicationRepository.save(application);
+
+    const documentRecords: ApplicationDocument[] = [];
+
+    // Save CV metadata
+    documentRecords.push(
+      this.saveDocument(
         cv,
         saved,
         ApplicationDocumentType.CV,
-      );
+      ),
+    );
 
-      const supportRecords = supportingFiles.map((file) =>
+    // Save cover letter metadata if uploaded
+    if (coverLetterFile) {
+      documentRecords.push(
+        this.saveDocument(
+          coverLetterFile,
+          saved,
+          ApplicationDocumentType.COVER_LETTER,
+        ),
+      );
+    }
+
+    // Save supporting document metadata
+    for (const file of supportingFiles) {
+      documentRecords.push(
         this.saveDocument(
           file,
           saved,
           ApplicationDocumentType.SUPPORTING,
         ),
       );
+    }
 
-      await this.documentRepository.save([
-        cvRecord,
-        ...supportRecords,
-      ]);
-    } catch (error) {
-      await this.applicationRepository.remove(saved);
+    await this.documentRepository.save(documentRecords);
 
-      // Remove uploaded files if saving their records fails
-      for (const file of [cv, ...supportingFiles]) {
-        if (file.path && existsSync(file.path)) {
-          unlinkSync(file.path);
-        }
+  } catch (error) {
+
+    // Remove uploaded files
+    for (const file of uploadedFiles) {
+      if (file.path && existsSync(file.path)) {
+        unlinkSync(file.path);
       }
-
-      throw error;
+    }
+   
+    // Remove the application if it was already saved
+    if (saved) {
+      await this.applicationRepository.remove(saved);
     }
 
-    await this.notifyUser(
-      jobSeekerId,
-      `Your application for "${job.title}" was submitted successfully.`,
-    );
-
-    return this.findOne(saved.applicationId, jobSeekerId);
+    throw error;
   }
 
-  // Save uploaded document information in Oracle
-  private saveDocument(
-    file: Express.Multer.File,
-    application: Application,
-    documentType: ApplicationDocumentType,
-  ): ApplicationDocument {
-    if (!file.path) {
-      throw new BadRequestException(
-        'Uploaded file does not have a storage path.',
-      );
-    }
+  await this.notifyUser(
+    jobSeekerId,
+    `Your application for "${job.title}" was submitted successfully.`,
+  );
 
-    return this.documentRepository.create({
-      applicationId: application.applicationId,
-      application,
-      documentType,
-      originalName: basename(file.originalname).slice(0, 255),
-      storedName: basename(file.path),
-      mimeType: file.mimetype,
-      fileSize: file.size,
-      filePath: file.path,
-    });
+  return this.findOne(saved.applicationId, jobSeekerId);
+}
+  saveDocument(file: Express.Multer.File, saved: Application, SUPPORTING: ApplicationDocumentType): ApplicationDocument {
+    throw new Error('Method not implemented.');
   }
+
 
   // Get one application belonging to a job seeker
   async findOne(
@@ -353,7 +382,7 @@ export class ApplicationsService {
       }
     } catch (error) {
       this.logger.error(
-        `Could not create application notification for user ${userId}.`,
+        `Could not create  an application notification for user ${userId}.`,
         error instanceof Error ? error.stack : undefined,
       );
     }

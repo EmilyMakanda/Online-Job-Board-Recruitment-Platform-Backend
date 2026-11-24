@@ -47,7 +47,7 @@ function fileFilter(
 ) {
   const extension = extname(file.originalname).toLowerCase();
   if(!allowedExtensions.has(extension) || !allowedMimeTypes.has(file.mimetype)) {
-    return callback(new BadRequestException('Invalid file type'), false);
+    return callback(new BadRequestException('Invalid file type. Only PDF and TXT files are allowed.'), false);
   }
   callback(null, true);
 }
@@ -60,9 +60,8 @@ export class ApplicationsController {
   constructor(private readonly applicationsService: ApplicationsService) {}
 
   @Post()
-
   @Roles('job_seeker')
-  @ApiOperation({ summary: 'Submit a job application with a CV and a supporting documents' })
+  @ApiOperation({ summary: 'Submit a job application with a CV and some supporting documents' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -71,7 +70,19 @@ export class ApplicationsController {
       properties: {
         jobId: {type: 'string', format: 'uuid' },
         coverLetter: {type: 'string', maxLength: 2000},
+        highestEducation: {type: 'string',},
+        fieldOfStudy: {type: 'string',},
+        yearsOfExperience: {type:'string',},
+        currentEmploymentStatus: {type: 'string',},
+        expectedSalary: {type: 'number',},
+        noticePeriod: {type:'string',},
+        availableStartDate: {type:'string', format: 'date',},
+        willingToRelocate: {type: 'boolean',},
+        portfolioUrl: {type: 'string',},
+        linkedinUrl: {type:'string',},
+        additionalAnswers: { type: 'string', description: 'JSON string containing answers to employer questions',},
         cv: {type: 'string', format: 'binary'},
+        coverLetterFile: {type:'string', format:'binary',},
         supportingDocuments: {
           type: 'array',
           items: { type: 'string', format: 'binary'},
@@ -84,6 +95,7 @@ export class ApplicationsController {
     FileFieldsInterceptor(
       [
         {name: 'cv', maxCount: 1 },
+        {name: 'coverLetterFile', maxCount: 1},
         {name: 'supportingDocuments', maxCount: 5},
       ],
       { 
@@ -102,14 +114,18 @@ export class ApplicationsController {
     @UploadedFiles()
     files: {
       cv?: Express.Multer.File[];
+      coverLetterFile?: Express.Multer.File[];
       supportingDocuments?: Express.Multer.File[];
     },
     @Req() req: AuthenticatedRequest,
   ) {
     const cv = files?.cv?.[0];
-    if (!cv) throw new BadRequestException('Please attach your CV(PDF OR TXT).');
+    if (!cv) { throw new BadRequestException('Please attach your CV(PDF OR TXT).');
+    }
+    
+    const coverLetterFile = files?.coverLetterFile?.[0];
     return this.applicationsService.create(
-      dto, req.user.sub, cv, files.supportingDocuments ?? [],);
+      dto, req.user.sub, cv, files.supportingDocuments ?? [],coverLetterFile,);
   }
 
   @Get()
@@ -144,6 +160,33 @@ export class ApplicationsController {
       req.user.sub,
     );
   }
+
+   @Get('documents/:documentId/download')
+  @Roles('job_seeker', 'employer')
+  @ApiOperation({
+    summary: 'Download an application document if you are its applicant or the job owner',
+  })
+  async downloadDocument(
+    @Param('documentId', ParseIntPipe)
+    documentId: number,
+
+    @Req() req: AuthenticatedRequest,
+
+    @Res() res: Response,
+  ) {
+    const document =
+      await this.applicationsService.getDocumentForUser(
+        documentId,
+        req.user.sub,
+        req.user.role,
+      );
+
+    return res.download(
+      document.filePath,
+      document.originalName,
+    );
+  }
+
 
   @Get(':id')
   @Roles('job_seeker')
@@ -199,21 +242,5 @@ export class ApplicationsController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.applicationsService.remove(id, req.user.sub);
-  }
-
-  @Get('documents/:documentId/download')
-  @Roles('job_seeker', 'employer')
-  @ApiOperation({ summary: 'Download an application document if you are its applicant or the job owner'})
-  async downloadDocument(
-    @Param('documentId', ParseIntPipe) documentId: number,
-    @Req() req: AuthenticatedRequest,
-    @Res() res: Response,
-  ){
-    const document = await this.applicationsService.getDocumentForUser(
-      documentId,
-      req.user.sub,
-      req.user.role,
-    );
-    return res.download(document.filePath, document.originalName);
   }
 }
