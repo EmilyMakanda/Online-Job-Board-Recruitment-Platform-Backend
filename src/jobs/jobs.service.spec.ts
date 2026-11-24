@@ -17,6 +17,7 @@ describe('JobService', () => {
     findOne: vi.fn(),
     create: vi.fn(),
     save: vi.fn(),
+    update: vi.fn(),
     remove: vi.fn(),
     createQueryBuilder: vi.fn(),
   };
@@ -46,7 +47,11 @@ describe('JobService', () => {
 
   it('creates a pending job associated with the authenticated employer company', async () => {
     const user = { id: 12 } as User;
-    const company = { companyId: 3, employerId: 12 } as Company;
+    const company = {
+      companyId: 3,
+      employerId: 12,
+      verificationStatus: 'verified',
+    } as Company;
     const job = { id: 'job-id', status: JobStatus.PENDING } as Job;
     userRepository.findOne.mockResolvedValue(user);
     companyRepository.findOneBy.mockResolvedValue(company);
@@ -59,6 +64,7 @@ describe('JobService', () => {
           title: 'Engineer',
           description: 'Build software',
           location: 'Remote',
+          deadline: new Date('2099-07-15T23:59:59.000Z'),
         },
         12,
       ),
@@ -70,6 +76,7 @@ describe('JobService', () => {
       title: 'Engineer',
       description: 'Build software',
       location: 'Remote',
+      deadline: new Date('2099-07-15T23:59:59.000Z'),
       status: JobStatus.PENDING,
       postedBy: user,
       company,
@@ -83,13 +90,56 @@ describe('JobService', () => {
     await expect(
       service.createJob(
         {
-          title: 'Engineer',
+          title: 'Software Engineer',
           description: 'Build software',
           location: 'Remote',
+          deadline: new Date('2099-07-15T23:59:59.000Z'),
         },
         12,
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(jobRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('does not allow an employer with an unverified company to post jobs', async () => {
+    userRepository.findOne.mockResolvedValue({ id: 12 });
+    companyRepository.findOneBy.mockResolvedValue({
+      employerId: 12,
+      verificationStatus: 'pending',
+    });
+
+    await expect(
+      service.createJob(
+        {
+          title: 'Engineer',
+          description: 'Build software',
+          location: 'Remote',
+          deadline: new Date('2099-07-15T23:59:59.000Z'),
+        },
+        12,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(jobRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects whitespace-only job fields after trimming', async () => {
+    userRepository.findOne.mockResolvedValue({ id: 12 });
+    companyRepository.findOneBy.mockResolvedValue({
+      employerId: 12,
+      verificationStatus: 'verified',
+    });
+
+    await expect(
+      service.createJob(
+        {
+          title: '   ',
+          description: 'Build software',
+          location: 'Remote',
+          deadline: new Date('2099-07-15T23:59:59.000Z'),
+        },
+        12,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(jobRepository.save).not.toHaveBeenCalled();
   });
 
@@ -111,7 +161,11 @@ describe('JobService', () => {
     await service.getAllJobs();
 
     expect(jobRepository.find).toHaveBeenCalledWith({
-      where: { status: JobStatus.APPROVED },
+      where: {
+        status: JobStatus.APPROVED,
+        deadline: expect.objectContaining({ _type: 'moreThan' }),
+        company: { verificationStatus: 'verified' },
+      },
       relations: { company: true },
       order: { createdAt: 'DESC' },
     });
@@ -176,6 +230,13 @@ describe('JobService', () => {
     expect(queryBuilder.where).toHaveBeenCalledWith('job.status = :status', {
       status: JobStatus.APPROVED,
     });
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith('job.deadline > :now', {
+      now: expect.any(Date),
+    });
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+      'company.verificationStatus = :companyStatus',
+      { companyStatus: 'verified' },
+    );
     expect(queryBuilder.andWhere).toHaveBeenCalledWith(
       '(LOWER(job.title) LIKE LOWER(:term) OR LOWER(job.description) LIKE LOWER(:term) OR LOWER(job.location) LIKE LOWER(:term))',
       { term: '%Engineer%' },
@@ -202,7 +263,32 @@ describe('JobService', () => {
     expect(jobRepository.save).toHaveBeenCalledWith(job);
   });
 
-  it('prevents employers from editing or resubmitting an administratively removed job', async () => {
+  it('updates a job deadline', async () => {
+    const job = { deadline: new Date('2099-07-01T21:59:59.999Z') } as Job;
+    jobRepository.findOne.mockResolvedValue(job);
+    jobRepository.save.mockResolvedValue(job);
+
+    const deadline = new Date('2099-07-15T23:59:59.000Z');
+    await service.updateJob('job-id', { deadline }, 12);
+
+    expect(job.deadline).toEqual(deadline);
+    expect(jobRepository.save).toHaveBeenCalledWith(job);
+  });
+
+  it('returns approved and rejected jobs to pending review after edits', async () => {
+    for (const status of [JobStatus.APPROVED, JobStatus.REJECTED]) {
+      const job = { status } as Job;
+      jobRepository.findOne.mockResolvedValue(job);
+      jobRepository.save.mockResolvedValue(job);
+
+      await service.updateJob('job-id', { title: 'Updated title' }, 12);
+
+      expect(job.status).toBe(JobStatus.PENDING);
+      expect(jobRepository.save).toHaveBeenCalledWith(job);
+    }
+  });
+
+  it('prevents editing or resubmitting an administratively removed job', async () => {
     jobRepository.findOne.mockResolvedValue({ status: JobStatus.REMOVED });
 
     await expect(
@@ -214,18 +300,40 @@ describe('JobService', () => {
     expect(jobRepository.save).not.toHaveBeenCalled();
   });
 
-  it('deletes only a job associated with the employer company', async () => {
-    jobRepository.findOne.mockResolvedValue({ title: 'Engineer' });
-    jobRepository.remove.mockResolvedValue(undefined);
+  it('removes a job from listings while preserving its record', async () => {
+    const job = {
+      title: 'Engineer',
+      status: JobStatus.APPROVED,
+      deadline: new Date('2099-07-15T23:59:59.000Z'),
+    } as Job;
+    jobRepository.findOne.mockResolvedValue(job);
+    jobRepository.save.mockResolvedValue(job);
 
-    await expect(service.deleteJob('job-id', 12)).resolves.toEqual({
-      message: 'Job "Engineer" successfully deleted',
+    await expect(service.deleteJob('job-id', 12)).resolves.toMatchObject({
+      message: 'The job was closed and retained with its application history.',
+      job,
     });
-    expect(jobRepository.remove).toHaveBeenCalledWith({ title: 'Engineer' });
+    expect(job.status).toBe(JobStatus.CLOSED);
+    expect(jobRepository.remove).not.toHaveBeenCalled();
   });
 
-  it('submits an owned draft for review and rejects closed jobs', async () => {
-    const job = { status: JobStatus.DRAFT } as Job;
+  it('leaves a closed job unchanged when an employer removes it', async () => {
+    const job = { title: 'Engineer', status: JobStatus.CLOSED } as Job;
+    jobRepository.findOne.mockResolvedValue(job);
+
+    await expect(service.deleteJob('job-id', 12)).resolves.toMatchObject({
+      message: 'The job was closed and retained with its application history.',
+      job,
+    });
+    expect(jobRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('publishes an owned draft and rejects closed jobs', async () => {
+    const job = {
+      status: JobStatus.DRAFT,
+      deadline: new Date('2099-07-15T23:59:59.000Z'),
+      company: { verificationStatus: 'verified' },
+    } as Job;
     jobRepository.findOne.mockResolvedValue(job);
     jobRepository.save.mockResolvedValue({ ...job, status: JobStatus.PENDING });
 
@@ -238,6 +346,28 @@ describe('JobService', () => {
     await expect(service.publishJob('job-id', 12)).rejects.toBeInstanceOf(
       BadRequestException,
     );
+
+    jobRepository.findOne.mockResolvedValue({ status: JobStatus.APPROVED });
+    await expect(service.publishJob('job-id', 12)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('closes a draft instead of publishing it after its deadline', async () => {
+    const job = {
+      status: JobStatus.DRAFT,
+      deadline: new Date('2000-07-15T21:59:59.999Z'),
+      company: { verificationStatus: 'verified' },
+    } as Job;
+    jobRepository.findOne.mockResolvedValue(job);
+    jobRepository.save.mockResolvedValue(job);
+
+    await expect(service.publishJob('job-id', 12)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+
+    expect(job.status).toBe(JobStatus.CLOSED);
+    expect(jobRepository.save).toHaveBeenCalledWith(job);
   });
 
   it('closes an owned listing', async () => {
@@ -251,6 +381,15 @@ describe('JobService', () => {
     expect(jobRepository.save).toHaveBeenCalledWith(job);
   });
 
+  it('only allows approved jobs to be closed by employers', async () => {
+    jobRepository.findOne.mockResolvedValue({ status: JobStatus.PENDING });
+
+    await expect(service.closeJob('job-id', 12)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(jobRepository.save).not.toHaveBeenCalled();
+  });
+
   it('only returns approved jobs to job seekers by ID', async () => {
     jobRepository.findOne.mockResolvedValue(null);
 
@@ -258,8 +397,26 @@ describe('JobService', () => {
       NotFoundException,
     );
     expect(jobRepository.findOne).toHaveBeenCalledWith({
-      where: { id: 'job-id', status: JobStatus.APPROVED },
+      where: {
+        id: 'job-id',
+        status: JobStatus.APPROVED,
+        deadline: expect.objectContaining({ _type: 'moreThan' }),
+        company: { verificationStatus: 'verified' },
+      },
       relations: { company: true },
     });
+  });
+
+  it('closes approved jobs whose deadline has passed', async () => {
+    await service.closeExpiredJobs();
+
+    const [criteria, update] = jobRepository.update.mock.calls[0];
+    expect(criteria).toHaveLength(2);
+    expect(criteria[0].status).toBe(JobStatus.APPROVED);
+    expect(criteria[0].deadline._type).toBe('lessThanOrEqual');
+    expect(criteria[0].deadline._value).toBeInstanceOf(Date);
+    expect(criteria[1].status).toBe(JobStatus.APPROVED);
+    expect(criteria[1].deadline._type).toBe('isNull');
+    expect(update).toEqual({ status: JobStatus.CLOSED });
   });
 });

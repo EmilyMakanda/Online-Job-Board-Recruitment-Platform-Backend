@@ -37,6 +37,9 @@ export class Job {
   @Column({ type: 'varchar2', length: 100, nullable: false })
   location: string;
 
+  @Column({ type: 'timestamp', nullable: true })
+  deadline: Date | null;
+
   @Index()
   @Column({ type: 'varchar2', length: 20, default: JobStatus.PENDING })
   status: JobStatus;

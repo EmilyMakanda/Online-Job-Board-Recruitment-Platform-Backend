@@ -36,8 +36,9 @@ SMTP_FROM=your-address@gmail.com
 
 ### Protecting user endpoints
 
-The `/users` endpoints require a valid JWT access token. First log in through
-`POST /authentication/login`, then include the returned token on each request:
+API endpoints are versioned under `/api/v1`. The `/api/v1/users` endpoints
+require a valid JWT access token. First log in through
+`POST /api/v1/authentication/login`, then include the returned token on each request:
 
 ```http
 Authorization: Bearer <access_token>
@@ -46,48 +47,44 @@ Authorization: Bearer <access_token>
 Tokens are signed with `JWT_SECRET` and expire after one day. Each protected
 request also reloads the account from Oracle, so deleted or deactivated users
 cannot continue using an existing token. Job-seeker registration is available
-at `POST /authentication/register`; employer registration is available at
-`POST /authentication/register/employer`. The backend assigns these roles
+at `POST /api/v1/authentication/register`; employer registration is available at
+`POST /api/v1/authentication/register/employer`. The backend assigns these roles
 without accepting a role from the request. Employers create and manage their
-company separately through `/companies`. Email verification and login remain
+company separately through `/api/v1/companies`. Email verification and login remain
 public so users can obtain an access token.
 
 Job postings are created in a pending state. Only administrators can approve
 them, after which they become visible to job seekers. Employers can access only
 their own postings and their job applications.
 
-All `/admin` endpoints require a JWT whose current database role is `admin`.
-The admin role is an authorization boundary, not a separate business domain:
-user/account operations live in the Users module, company verification in
-Companies, job moderation in Jobs, application monitoring in Applications,
-and report review in Reports. The Admin module is limited to cross-domain
-statistics and audit-log viewing. Existing `/admin/...` URLs are preserved.
-`PATCH /admin/users/:id/status` manages account activity; an administrator cannot deactivate their own account.
-`PATCH /admin/users/:id/role` assigns a role; administrators cannot change
-their own role or demote the last active administrator. The self-service
-`DELETE /users/:id` endpoint does not delete administrator accounts.
-Admin collection endpoints accept `page` (default `1`) and `limit` (default
-`50`, maximum `100`) query parameters; results remain arrays and are ordered
-newest first. `GET /admin/audit-logs` lists persisted admin actions.
+All `/api/v1/admin` endpoints require a JWT whose current database role is `admin`.
+Administrators can manage accounts, employers/companies, job moderation,
+applications, reports, and statistics. The endpoints
+`PATCH /api/v1/admin/users/:id/activate` and `PATCH /api/v1/admin/users/:id/deactivate`
+manage account activity; an administrator cannot deactivate their own account.
+Admin collection endpoints and `GET /api/v1/users` accept `page` (default `1`) and
+`limit` (default `50`, maximum `100`) query parameters; results remain arrays
+and are ordered newest first.
 Public registration and profile updates never assign roles. Bootstrap the
-first administrator through a trusted operator/database process; subsequent
-role changes can be performed by an administrator.
-
-Employers may submit jobs while their company is pending verification, but an
-administrator can only approve a job once its associated company is verified.
-Rejecting a company moves its approved jobs to rejected; those jobs require
-resubmission and fresh approval after the company is verified again. Only
-pending jobs can be approved or rejected; removed jobs cannot be re-approved.
+first administrator with the one-time `npm run seed:admin` command after
+building the project. Set `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD` only in
+the environment used for that command; `ADMIN_SEED_NAME` is optional. The
+command creates a verified admin with a hashed password, does nothing if an
+active, verified admin already exists, and fails if the configured email is
+already used by a non-admin account. Do not expose administrator role
+assignment in the public API or run the seed automatically when the server
+starts.
 
 Authenticated job seekers and employers can submit a report through
-`POST /reports`. Administrators review reports through `GET /admin/reports`
-and resolve or dismiss them with `PATCH /admin/reports/:id/status`.
+`POST /api/v1/reports`. Administrators review reports through
+`GET /api/v1/admin/reports` and resolve or dismiss them with
+`PATCH /api/v1/admin/reports/:id/status`.
 
 The Swagger UI is served at `http://localhost:3000/api/docs` by default (or
 the configured `PORT`). Use **Authorize** with the access token returned by
-`POST /authentication/login`; enter the token value without adding a `Bearer`
+`POST /api/v1/authentication/login`; enter the token value without adding a `Bearer`
 prefix because Swagger supplies the bearer scheme.
 
-`POST /authentication/logout` requires a bearer token. Access tokens are
+`POST /api/v1/authentication/logout` requires a bearer token. Access tokens are
 stateless and are not revoked by this endpoint, so the client must discard its
 token after a successful logout. The token remains usable until it expires.
