@@ -30,18 +30,18 @@ Everything is documented in Swagger at `/docs`, including request and response s
 
 | Area | Base path |
 | --- | --- |
-| Authentication | `/authentication` (register, verify-email, resend-verification, login, logout) |
-| Users | `/users` |
-| Companies | `/companies` |
-| Jobs | `/job` (note: singular), `/job/my-jobs`, `/job/search` |
-| Applications | `/applications` |
-| Notifications | `/notifications` |
-| Admin | `/admin` |
+| Authentication | `/api/v1/authentication` (register, verify-email, resend-verification, login, logout) |
+| Users | `/api/v1/users` |
+| Companies | `/api/v1/companies` |
+| Jobs | `/api/v1/job` (note: singular), `/api/v1/job/my-jobs`, `/api/v1/job/search` |
+| Applications | `/api/v1/applications` |
+| Notifications | `/api/v1/notifications` |
+| Admin | `/api/v1/admin` |
 
 **Authenticating:**
-1. Register with `POST /authentication/register`. The role is `job_seeker` or `employer`.
-2. Verify the email address with `POST /authentication/verify-email`.
-3. Log in with `POST /authentication/login` and copy the token from the response.
+1. Register with `POST /api/v1/authentication/register`. The role is `job_seeker` or `employer`.
+2. Verify the email address with `POST /api/v1/authentication/verify-email`.
+3. Log in with `POST /api/v1/authentication/login` and copy the token from the response.
 4. Send it on protected requests as `Authorization: Bearer <token>`. In Swagger, press **Authorize** and paste the token.
 
 Some endpoints are restricted by role. For example, only employers can create jobs.
@@ -73,7 +73,7 @@ Settings come from the `.env` file, which is never committed. `.env.example` lis
 ## Known limitations
 
 - Email verification depends on the mail service configuration. TODO — describe how to get the verification code during development.
-- `/notifications/test-email` is a development helper and should be removed or protected before any real deployment.
+- `/api/v1/notifications/test-email` is a development helper and should be removed or protected before any real deployment.
 - The API port (3002) is fixed in the code.
 - `DB_SYNCHRONIZE=true` is for demos only. A real deployment needs migrations.
 - The image contains the code on the branch it was built from. Features merged after that aren't included.
