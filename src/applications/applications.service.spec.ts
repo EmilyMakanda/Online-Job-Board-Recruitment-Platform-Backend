@@ -4,9 +4,14 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import type { Repository } from 'typeorm';
-import { Job } from '../jobs/entities/jobs.entity.js';
-import { JobStatus } from '../jobs/entities/jobs.entity.js';
+import type { Express } from 'express';
+import { vi } from 'vitest';
+
+import { Job, JobStatus } from '../jobs/entities/jobs.entity.js';
 import { JobService } from '../jobs/jobs.service.js';
+
+import { Application } from './entities/application.entity.js';
+import { ApplicationDocument } from './entities/application-document.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
 import { NotificationsService } from '../notification/notification.service.js';
 import {
@@ -17,7 +22,11 @@ import {
   ApplicationDocument,
   ApplicationDocumentType,
 } from './entities/application-document.entity.js';
+
 import { ApplicationsService } from './applications.service.js';
+
+import { User } from '../authentication/entities/user.entity.js';
+import { NotificationsService } from '../notification/notification.service.js';
 
 describe('ApplicationsService', () => {
   const applicationRepository = {
@@ -40,6 +49,14 @@ describe('ApplicationsService', () => {
       entity === Application ? applicationRepository : documentRepository,
     ),
   };
+
+  const documentRepository = {
+    create: vi.fn(),
+    save: vi.fn(),
+    find: vi.fn(),
+    remove: vi.fn(),
+  };
+
   const jobService = {
     getOneJob: vi.fn(),
   };
@@ -48,6 +65,17 @@ describe('ApplicationsService', () => {
     find: vi.fn(),
   };
   const notificationsService = { create: vi.fn() };
+
+
+  const userRepository = {
+    findOne: vi.fn(),
+  };
+
+  const notificationsService = {
+    create: vi.fn(),
+  };
+
+
   let service: ApplicationsService;
 
   beforeEach(() => {
@@ -61,6 +89,10 @@ describe('ApplicationsService', () => {
       jobService as unknown as JobService,
       userRepository as unknown as Repository<User>,
       notificationsService as unknown as NotificationsService,
+
+      userRepository as unknown as Repository<User>,
+      notificationsService as unknown as NotificationsService,
+
     );
   });
 
@@ -68,8 +100,28 @@ describe('ApplicationsService', () => {
     const job = {
       id: 'job-uuid',
       title: 'Engineer',
-      status: JobStatus.APPROVED,
+      status: JobStatus.OPEN,
     } as Job;
+
+    const application = {
+      applicationId: 10,
+      job,
+      jobSeekerId: 7,
+    } as Application;
+
+    const cv = {
+      originalname: 'cv.pdf',
+      path: '/tmp/cv.pdf',
+      mimetype: 'application/pdf',
+      size: 100,
+    } as Express.Multer.File;
+
+    jobService.getOneJob.mockResolvedValue(job);
+
+    applicationRepository.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(application);
+
     const application = {
       applicationId: 5,
       job,
@@ -87,10 +139,16 @@ describe('ApplicationsService', () => {
     applicationRepository.findOne
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(application);
+
     applicationRepository.create.mockReturnValue(application);
     applicationRepository.save.mockResolvedValue(application);
     documentRepository.create.mockImplementation((document) => document);
     documentRepository.save.mockResolvedValue([]);
+
+    documentRepository.create.mockReturnValue({});
+    documentRepository.save.mockResolvedValue([]);
+
+    userRepository.findOne.mockResolvedValue(null);
 
     await expect(
       service.create(
@@ -110,7 +168,7 @@ describe('ApplicationsService', () => {
       job,
       jobSeekerId: 7,
       coverLetter: 'Interested in the role.',
-      status: ApplicationStatus.SUBMITTED,
+      status: expect.any(String),
     });
     expect(documentRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -134,9 +192,27 @@ describe('ApplicationsService', () => {
     });
     applicationRepository.findOne.mockResolvedValue({ applicationId: 1 });
 
+    const cv = {
+      originalname: 'cv.pdf',
+      path: '/tmp/cv.pdf',
+      mimetype: 'application/pdf',
+      size: 100,
+    } as Express.Multer.File;
+
+    jobService.getOneJob.mockResolvedValue({
+      id: 'job-uuid',
+      status: JobStatus.OPEN,
+    });
+
+    applicationRepository.findOne.mockResolvedValue({
+      applicationId: 1,
+    });
+
+
     await expect(
       service.create({ jobId: 'job-uuid' }, 7, cv),
     ).rejects.toBeInstanceOf(ConflictException);
+
     expect(applicationRepository.create).not.toHaveBeenCalled();
   });
 

@@ -44,6 +44,7 @@ export class Job {
   @Column({ type: 'varchar2', length: 20, default: JobStatus.PENDING })
   status: JobStatus;
 
+<<<<<<< HEAD
   @ManyToOne(() => User, (user) => user.jobs, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'posted_by_user_id' })
   postedBy: Relation<User>;
@@ -51,6 +52,19 @@ export class Job {
   @ManyToOne(() => Company, { nullable: false })
   @JoinColumn({ name: 'company_id', referencedColumnName: 'companyId' })
   company: Relation<Company>;
+=======
+    
+    @ManyToOne(()=>User, (user) => user.jobs, {onDelete: 'CASCADE'})
+    @JoinColumn({ name: 'posted_by_user_id' })
+    postedBy: Relation<User>;
+
+    @ManyToOne(() => Company, {
+  nullable: false,
+  onDelete: 'CASCADE',
+})
+@JoinColumn({ name: 'COMPANY_ID' })
+company: Relation<Company>;
+>>>>>>> 4f93cc2 (Updated application module)
 
   @OneToMany(() => Application, (application) => application.job)
   applications: Relation<Application[]>;

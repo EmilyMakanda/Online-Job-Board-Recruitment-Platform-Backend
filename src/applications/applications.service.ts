@@ -517,7 +517,7 @@ export class ApplicationsService {
       }
     } catch (error) {
       this.logger.error(
-        `Could not create application notification for user ${userId}.`,
+        `Could not create  an application notification for user ${userId}.`,
         error instanceof Error ? error.stack : undefined,
       );
     }

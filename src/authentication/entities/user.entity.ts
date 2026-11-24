@@ -8,9 +8,15 @@ import {
   type Relation,
 } from 'typeorm';
 import { Job } from '../../jobs/entities/jobs.entity.js';
+<<<<<<< HEAD
 import { type UserRole } from '../roles.decorator.js';
 
 @Entity('users')
+=======
+import type { UserRole } from '../roles.decorator.js';
+import {  Entity, Column, JoinColumn, ManyToOne, Relation, UpdateDateColumn,} from 'typeorm';
+@typeorm.Entity('users')
+>>>>>>> 4f93cc2 (Updated application module)
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
@@ -69,6 +75,7 @@ export class User {
   })
   emailVerificationTokenExpiresAt: Date | null;
 
+<<<<<<< HEAD
   @Column({
     name: 'IS_ACTIVE',
     type: 'number',
@@ -77,6 +84,15 @@ export class User {
   isActive: number;
 
   @CreateDateColumn({ type: 'timestamp' })
+=======
+@typeorm.ManyToOne(() => Company, 
+{ onDelete: 'SET NULL', nullable: true })
+@typeorm.JoinColumn({ 
+  name: 'companyId',
+  referencedColumnName: 'companyId'})
+
+  @typeorm.CreateDateColumn({ type: 'timestamp' })
+>>>>>>> 4f93cc2 (Updated application module)
   createdAt: Date;
 
   @UpdateDateColumn({ type: 'timestamp' })
