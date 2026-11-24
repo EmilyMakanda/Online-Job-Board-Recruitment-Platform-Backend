@@ -7,6 +7,7 @@ import { ApplicationDocument } from './entities/application-document.entity.js';
 import { JobModule } from '../jobs/jobs.module.js';
 import { User } from '../authentication/entities/user.entity.js';
 import { NotificationsModule } from '../notification/notification.module.js';
+import { ApplicationsAdminController } from './applications-admin.controller.js';
 
 @Module({
   imports: [
@@ -14,7 +15,7 @@ import { NotificationsModule } from '../notification/notification.module.js';
     JobModule,
     NotificationsModule,
   ],
-  controllers: [ApplicationsController],
+  controllers: [ApplicationsController, ApplicationsAdminController],
   providers: [ApplicationsService],
   exports: [ApplicationsService],
 })

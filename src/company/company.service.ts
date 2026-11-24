@@ -13,9 +13,9 @@ import { User } from '../authentication/entities/user.entity.js';
 import { Job, JobStatus } from '../jobs/entities/jobs.entity.js';
 import { AdminAuditService } from '../admin/admin-audit.service.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
-import { UpdateCompanyVerificationDto } from '../admin/dto/update-company-verification.js';
 import { CreateCompanyDto } from './dto/create-company.dto.js';
 import { UpdateCompanyDto } from './dto/update-company.dto.js';
+import { UpdateCompanyVerificationDto } from './dto/update-company-verification.dto.js';
 
 @Injectable()
 export class CompanyService {

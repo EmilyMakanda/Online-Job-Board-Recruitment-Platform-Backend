@@ -7,7 +7,7 @@ import { CreateReportDto } from './dto/create-report.dto.js';
 import { Report, ReportStatus } from './entities/report.entity.js';
 import { ReportsService } from './reports.service.js';
 import { AdminAuditService } from '../admin/admin-audit.service.js';
-import { UpdateReportStatusDto } from '../admin/dto/update-report-status.dto.js';
+import { UpdateReportStatusDto } from './dto/update-report-status.dto.js';
 
 describe('ReportsService', () => {
   const reportRepository = {

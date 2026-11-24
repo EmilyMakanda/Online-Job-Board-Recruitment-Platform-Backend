@@ -12,10 +12,9 @@ import type { Request } from 'express';
 import { ApiBody, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { ApiAdminOperation, ApiAdminPagination, UseAdminAccess } from '../admin/admin-api.decorators.js';
-import { AdminCompanyResponseDto } from '../admin/dto/admin-responses.dto.js';
-import { UpdateCompanyVerificationDto } from '../admin/dto/update-company-verification.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 import { CompanyService } from './company.service.js';
+import { UpdateCompanyVerificationDto } from './dto/update-company-verification.dto.js';
 
 interface AdminRequest extends Request {
   user: { sub: number };
@@ -30,7 +29,7 @@ export class CompanyAdminController {
   @Get()
   @ApiAdminPagination()
   @ApiAdminOperation('List all companies')
-  @ApiResponse({ status: 200, type: AdminCompanyResponseDto, isArray: true })
+  @ApiResponse({ status: 200, description: 'Company records.', isArray: true })
   getCompanies(@Query() pagination: PaginationQueryDto) {
     return this.companyService.getAdminCompanies(pagination);
   }
@@ -38,7 +37,11 @@ export class CompanyAdminController {
   @Get('pending')
   @ApiAdminPagination()
   @ApiAdminOperation('List companies awaiting verification')
-  @ApiResponse({ status: 200, type: AdminCompanyResponseDto, isArray: true })
+  @ApiResponse({
+    status: 200,
+    description: 'Companies with pending verification.',
+    isArray: true,
+  })
   getPendingCompanies(@Query() pagination: PaginationQueryDto) {
     return this.companyService.getAdminPendingCompanies(pagination);
   }
@@ -47,7 +50,10 @@ export class CompanyAdminController {
   @ApiAdminOperation('Verify or reject a company')
   @ApiParam({ name: 'id', type: Number, description: 'Company ID.' })
   @ApiBody({ type: UpdateCompanyVerificationDto })
-  @ApiResponse({ status: 200, type: AdminCompanyResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Company verification status updated.',
+  })
   @ApiResponse({ status: 404, description: 'Company not found.' })
   updateVerification(
     @Param('id', ParseIntPipe) id: number,

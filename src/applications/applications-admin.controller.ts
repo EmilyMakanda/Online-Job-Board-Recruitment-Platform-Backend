@@ -8,7 +8,6 @@ import {
 import { ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { ApiAdminOperation, ApiAdminPagination, UseAdminAccess } from '../admin/admin-api.decorators.js';
-import { AdminApplicationResponseDto } from '../admin/dto/admin-responses.dto.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 import { ApplicationsService } from './applications.service.js';
 
@@ -23,7 +22,7 @@ export class ApplicationsAdminController {
   @ApiAdminOperation('List applications for administrative monitoring')
   @ApiResponse({
     status: 200,
-    type: AdminApplicationResponseDto,
+    description: 'Applications with associated job and company details.',
     isArray: true,
   })
   getApplications(@Query() pagination: PaginationQueryDto) {
@@ -33,7 +32,7 @@ export class ApplicationsAdminController {
   @Get(':id')
   @ApiAdminOperation('Get an application and its job details by ID')
   @ApiParam({ name: 'id', type: Number, description: 'Application ID.' })
-  @ApiResponse({ status: 200, type: AdminApplicationResponseDto })
+  @ApiResponse({ status: 200, description: 'Application details.' })
   @ApiResponse({ status: 404, description: 'Application not found.' })
   getApplication(@Param('id', ParseIntPipe) id: number) {
     return this.applicationsService.getAdminApplicationById(id);

@@ -11,7 +11,6 @@ import type { Request } from 'express';
 import { ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { ApiAdminOperation, ApiAdminPagination, UseAdminAccess } from '../admin/admin-api.decorators.js';
-import { AdminJobResponseDto } from '../admin/dto/admin-responses.dto.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 import { JobService } from './jobs.service.js';
 
@@ -28,7 +27,7 @@ export class JobsAdminController {
   @Get()
   @ApiAdminPagination()
   @ApiAdminOperation('List all job postings for moderation')
-  @ApiResponse({ status: 200, type: AdminJobResponseDto, isArray: true })
+  @ApiResponse({ status: 200, description: 'Job postings.', isArray: true })
   getJobs(@Query() pagination: PaginationQueryDto) {
     return this.jobService.getAdminJobs(pagination);
   }
@@ -36,7 +35,7 @@ export class JobsAdminController {
   @Patch(':id/approve')
   @ApiAdminOperation('Approve a pending job posting')
   @ApiParam({ name: 'id', description: 'Job UUID.' })
-  @ApiResponse({ status: 200, type: AdminJobResponseDto })
+  @ApiResponse({ status: 200, description: 'Job approved.' })
   @ApiResponse({ status: 404, description: 'Job posting not found.' })
   @ApiResponse({
     status: 409,
@@ -49,7 +48,7 @@ export class JobsAdminController {
   @Patch(':id/reject')
   @ApiAdminOperation('Reject a pending job posting')
   @ApiParam({ name: 'id', description: 'Job UUID.' })
-  @ApiResponse({ status: 200, type: AdminJobResponseDto })
+  @ApiResponse({ status: 200, description: 'Job rejected.' })
   @ApiResponse({ status: 404, description: 'Job posting not found.' })
   @ApiResponse({ status: 409, description: 'Only pending jobs can be rejected.' })
   rejectJob(@Param('id') id: string, @Req() request: AdminRequest) {

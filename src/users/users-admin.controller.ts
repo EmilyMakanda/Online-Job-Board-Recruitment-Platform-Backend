@@ -18,12 +18,9 @@ import {
 
 import { ApiAdminOperation, ApiAdminPagination, UseAdminAccess } from '../admin/admin-api.decorators.js';
 import {
-  AdminUserResponseDto,
-  AdminUserRoleResponseDto,
-  AdminUserStatusResponseDto,
-} from '../admin/dto/admin-responses.dto.js';
-import { UpdateUserRoleDto } from '../admin/dto/update-user-role.dto.js';
-import { UpdateUserStatusDto } from '../admin/dto/update-user-status.dto.js';
+  UpdateUserRoleDto,
+} from './dto/update-user-role.dto.js';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 import { UsersService } from './users.service.js';
 
@@ -43,7 +40,6 @@ export class UsersAdminController {
   @ApiResponse({
     status: 200,
     description: 'User accounts with sensitive credential fields omitted.',
-    type: AdminUserResponseDto,
     isArray: true,
   })
   getUsers(@Query() pagination: PaginationQueryDto) {
@@ -53,7 +49,7 @@ export class UsersAdminController {
   @Get('users/:id')
   @ApiAdminOperation('Get a user account by ID')
   @ApiParam({ name: 'id', type: Number, description: 'User account ID.' })
-  @ApiResponse({ status: 200, type: AdminUserResponseDto })
+  @ApiResponse({ status: 200, description: 'The requested user account.' })
   @ApiResponse({ status: 404, description: 'User account not found.' })
   getUser(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.getAdminUserById(id);
@@ -63,7 +59,7 @@ export class UsersAdminController {
   @ApiAdminOperation('Set a user active state (1 active, 0 inactive)')
   @ApiParam({ name: 'id', type: Number, description: 'User account ID.' })
   @ApiBody({ type: UpdateUserStatusDto })
-  @ApiResponse({ status: 200, type: AdminUserStatusResponseDto })
+  @ApiResponse({ status: 200, description: 'User account status updated.' })
   @ApiResponse({ status: 404, description: 'User account not found.' })
   @ApiResponse({
     status: 409,
@@ -81,7 +77,7 @@ export class UsersAdminController {
   @ApiAdminOperation('Assign a role to a user account')
   @ApiParam({ name: 'id', type: Number, description: 'User account ID.' })
   @ApiBody({ type: UpdateUserRoleDto })
-  @ApiResponse({ status: 200, type: AdminUserRoleResponseDto })
+  @ApiResponse({ status: 200, description: 'User role updated.' })
   @ApiResponse({ status: 404, description: 'User account not found.' })
   @ApiResponse({
     status: 409,

@@ -12,7 +12,7 @@ import { Roles } from '../authentication/roles.decorator.js';
 
 export const UseAdminAccess = () =>
   applyDecorators(
-    ApiBearerAuth('JWT-auth'),
+    ApiBearerAuth(),
     UseGuards(JwtAuthGuard, RolesGuard),
     UsePipes(
       new ValidationPipe({

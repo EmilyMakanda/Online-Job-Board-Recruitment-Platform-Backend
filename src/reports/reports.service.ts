@@ -12,8 +12,8 @@ import { Job } from '../jobs/entities/jobs.entity.js';
 import { CreateReportDto } from './dto/create-report.dto.js';
 import { Report, ReportStatus } from './entities/report.entity.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
-import { UpdateReportStatusDto } from '../admin/dto/update-report-status.dto.js';
 import { AdminAuditService } from '../admin/admin-audit.service.js';
+import { UpdateReportStatusDto } from './dto/update-report-status.dto.js';
 
 @Injectable()
 export class ReportsService {

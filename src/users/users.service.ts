@@ -11,10 +11,10 @@ import { User } from '../authentication/entities/user.entity.js';
 import { Company } from '../company/entities/company.entity.js';
 import { AdminAuditService } from '../admin/admin-audit.service.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
-import { UpdateUserRoleDto } from '../admin/dto/update-user-role.dto.js';
-import { UpdateUserStatusDto } from '../admin/dto/update-user-status.dto.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto.js';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
 
 const PUBLIC_USER_FIELDS: FindOptionsSelect<User> = {
   id: true,
@@ -128,6 +128,7 @@ export class UsersService {
         const activeAdmins = await users.find({
           where: { role: 'admin', isActive: 1 },
           select: { id: true },
+          lock: { mode: 'pessimistic_write' },
         });
         if (activeAdmins.length <= 1) {
           throw new ConflictException(
@@ -178,6 +179,7 @@ export class UsersService {
         const activeAdmins = await users.find({
           where: { role: 'admin', isActive: 1 },
           select: { id: true },
+          lock: { mode: 'pessimistic_write' },
         });
         if (activeAdmins.length <= 1) {
           throw new ConflictException(

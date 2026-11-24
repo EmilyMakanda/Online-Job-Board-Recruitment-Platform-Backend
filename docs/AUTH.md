@@ -53,32 +53,41 @@ without accepting a role from the request. Employers create and manage their
 company separately through `/api/v1/companies`. Email verification and login remain
 public so users can obtain an access token.
 
-Job postings are created in a pending state. Only administrators can approve
-them, after which they become visible to job seekers. Employers can access only
-their own postings and their job applications.
+Administrator access is a user role checked by the JWT and role guards. The
+admin role does not own domain business logic: admin operations are registered
+with the Users, Companies, Jobs, Applications, and Reports modules. No
+standalone Admin business module is needed. Admin-only endpoints require a JWT
+whose current database role is `admin`.
 
-All `/api/v1/admin` endpoints require a JWT whose current database role is `admin`.
-Administrators can manage accounts, employers/companies, job moderation,
-applications, reports, and statistics. The endpoints
-`PATCH /api/v1/admin/users/:id/activate` and `PATCH /api/v1/admin/users/:id/deactivate`
-manage account activity; an administrator cannot deactivate their own account.
-Admin collection endpoints and `GET /api/v1/users` accept `page` (default `1`) and
-`limit` (default `50`, maximum `100`) query parameters; results remain arrays
-and are ordered newest first.
-Public registration and profile updates never assign roles. Bootstrap the
-first administrator with the one-time `npm run seed:admin` command after
-building the project. Set `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD` only in
-the environment used for that command; `ADMIN_SEED_NAME` is optional. The
-command creates a verified admin with a hashed password, does nothing if an
-active, verified admin already exists, and fails if the configured email is
-already used by a non-admin account. Do not expose administrator role
-assignment in the public API or run the seed automatically when the server
-starts.
+The admin API supports account and role management under `/api/v1/admin/users`,
+company verification under `/api/v1/admin/companies`, job moderation under
+`/api/v1/admin/jobs`, application monitoring under
+`/api/v1/admin/applications`, and report review under `/api/v1/admin/reports`.
+`PATCH /api/v1/admin/users/:id/status` changes account activity and
+`PATCH /api/v1/admin/users/:id/role` changes a user's role. Administrators
+cannot deactivate or demote themselves, deactivate/demote the last active
+administrator, or delete an administrator through self-service.
 
-Authenticated job seekers and employers can submit a report through
-`POST /api/v1/reports`. Administrators review reports through
-`GET /api/v1/admin/reports` and resolve or dismiss them with
-`PATCH /api/v1/admin/reports/:id/status`.
+Admin collection endpoints accept `page` (default `1`) and `limit` (default
+`50`, maximum `100`). `GET /api/v1/admin/statistics` returns platform totals,
+and `GET /api/v1/admin/audit-logs` lists persisted admin actions. Public
+registration and profile updates never assign roles. Bootstrap the first
+administrator with the one-time `npm run seed:admin` command after building
+the project. Set `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD` only in the
+environment used for that command; `ADMIN_SEED_NAME` is optional. The command
+creates a verified admin with a hashed password, does nothing if an active,
+verified admin already exists, and fails if the configured email is already
+used by a non-admin account. Do not run the seed automatically at server
+startup.
+
+Employers may submit a job only after their company is verified. Admins can
+approve or reject only pending jobs, and approval also requires a verified
+company and a future application deadline. Rejecting a company moves its
+approved jobs back to rejected; removed jobs cannot be re-approved.
+
+Authenticated job seekers and employers can submit reports through
+`POST /api/v1/reports`. Administrators review pending reports and resolve or
+dismiss each report only once.
 
 The Swagger UI is served at `http://localhost:3000/api/docs` by default (or
 the configured `PORT`). Use **Authorize** with the access token returned by

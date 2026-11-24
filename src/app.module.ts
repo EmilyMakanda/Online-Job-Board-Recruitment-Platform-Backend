@@ -12,6 +12,7 @@ import { NotificationsModule } from './notification/notification.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { AdminModerationAndReports20261116100000 } from './database/migrations/20261116100000-AdminModerationAndReports.js';
 import { ApplicationDocumentsAndLifecycle20261118100000 } from './database/migrations/20261118100000-ApplicationDocumentsAndLifecycle.js';
+import { AdminAuditLogs20261124170000 } from './database/migrations/20261124170000-AdminAuditLogs.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -44,6 +45,7 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
         migrations: [
           AdminModerationAndReports20261116100000,
           ApplicationDocumentsAndLifecycle20261118100000,
+          AdminAuditLogs20261124170000,
         ],
         migrationsRun: false,
         autoLoadEntities: true,

@@ -17,9 +17,9 @@ import {
 } from '@nestjs/swagger';
 
 import { ApiAdminOperation, ApiAdminPagination, UseAdminAccess } from '../admin/admin-api.decorators.js';
-import { UpdateReportStatusDto } from '../admin/dto/update-report-status.dto.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 import { ReportsService } from './reports.service.js';
+import { UpdateReportStatusDto } from './dto/update-report-status.dto.js';
 
 interface AdminRequest extends Request {
   user: { sub: number };

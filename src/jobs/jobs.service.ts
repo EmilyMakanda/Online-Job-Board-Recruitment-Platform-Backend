@@ -80,6 +80,11 @@ export class JobService {
           'A job can only be approved when its company is verified.',
         );
       }
+      if (deadlineHasPassed(job.deadline)) {
+        throw new ConflictException(
+          'A job whose application deadline has passed cannot be approved.',
+        );
+      }
 
       job.status = JobStatus.APPROVED;
       await jobs.save(job);

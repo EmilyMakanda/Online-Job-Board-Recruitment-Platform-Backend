@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import type { Repository } from 'typeorm';
 import { Job } from '../jobs/entities/jobs.entity.js';
@@ -246,5 +247,35 @@ describe('ApplicationsService', () => {
     expect(application.status).toBe(ApplicationStatus.WITHDRAWN);
     expect(applicationRepository.save).toHaveBeenCalledWith(application);
     expect(applicationRepository.manager.transaction).toHaveBeenCalledOnce();
+  });
+
+  it('lists and retrieves applications for admin monitoring with job details', async () => {
+    const pagination = { page: 2, limit: 10 } as never;
+    const application = {
+      applicationId: 5,
+      job: { id: 'job-id', company: { companyId: 2 } },
+    };
+    applicationRepository.find.mockResolvedValue([application]);
+    applicationRepository.findOne.mockResolvedValue(application);
+
+    await expect(service.getAdminApplications(pagination)).resolves.toEqual([
+      application,
+    ]);
+    expect(applicationRepository.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relations: { job: { company: true } },
+        order: { appliedAt: 'DESC' },
+        skip: 10,
+        take: 10,
+      }),
+    );
+    await expect(service.getAdminApplicationById(5)).resolves.toBe(
+      application,
+    );
+
+    applicationRepository.findOne.mockResolvedValue(null);
+    await expect(service.getAdminApplicationById(404)).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });

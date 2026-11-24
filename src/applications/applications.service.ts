@@ -28,6 +28,7 @@ import {
 import { CreateApplicationDto } from './dto/create-application.dto.js';
 import type { UpdateApplicationDto } from './dto/update-application.dto.js';
 import type { UpdateApplicationStatusDto } from './dto/update-application-status.dto.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 
 const UPLOAD_DIR = join(process.cwd(), 'uploads', 'applications');
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -97,6 +98,26 @@ export class ApplicationsService {
     private readonly notificationsService: NotificationsService,
   ) {
     mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
+
+  getAdminApplications(pagination: PaginationQueryDto) {
+    return this.applicationRepository.find({
+      relations: { job: { company: true } },
+      order: { appliedAt: 'DESC' },
+      skip: (pagination.page - 1) * pagination.limit,
+      take: pagination.limit,
+    });
+  }
+
+  async getAdminApplicationById(applicationId: number) {
+    const application = await this.applicationRepository.findOne({
+      where: { applicationId },
+      relations: { job: { company: true } },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found.');
+    }
+    return application;
   }
 
   async create(
