@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,6 +11,9 @@ import { User } from '../authentication/entities/user.entity.js';
 import { Job } from '../jobs/entities/jobs.entity.js';
 import { CreateReportDto } from './dto/create-report.dto.js';
 import { Report, ReportStatus } from './entities/report.entity.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { UpdateReportStatusDto } from '../admin/dto/update-report-status.dto.js';
+import { AdminAuditService } from '../admin/admin-audit.service.js';
 
 @Injectable()
 export class ReportsService {
@@ -20,7 +24,51 @@ export class ReportsService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Job)
     private readonly jobRepository: Repository<Job>,
+    private readonly adminAuditService: AdminAuditService,
   ) {}
+
+  getAdminReports(pagination: PaginationQueryDto) {
+    return this.reportRepository.find({
+      order: { createdAt: 'DESC' },
+      skip: (pagination.page - 1) * pagination.limit,
+      take: pagination.limit,
+    });
+  }
+
+  async updateAdminReportStatus(
+    reportId: number,
+    dto: UpdateReportStatusDto,
+    actorId: number,
+  ) {
+    return this.reportRepository.manager.transaction(async (manager) => {
+      const reports = manager.getRepository(Report);
+      const report = await reports.findOne({ where: { reportId } });
+      if (!report) {
+        throw new NotFoundException('Report not found.');
+      }
+      if (report.status !== ReportStatus.PENDING) {
+        throw new ConflictException('Only pending reports can be reviewed.');
+      }
+
+      const from = report.status;
+      report.status = dto.status;
+      report.resolution = dto.resolution?.trim() || null;
+      report.resolvedAt = new Date();
+      await reports.save(report);
+      await this.adminAuditService.write(manager, {
+        actorId,
+        action: 'report.status.update',
+        targetType: 'report',
+        targetId: String(reportId),
+        details: {
+          from,
+          to: dto.status,
+          resolutionProvided: Boolean(dto.resolution?.trim()),
+        },
+      });
+      return report;
+    });
+  }
 
   async create(reporterId: number, dto: CreateReportDto) {
     const targetId = dto.targetId.trim();

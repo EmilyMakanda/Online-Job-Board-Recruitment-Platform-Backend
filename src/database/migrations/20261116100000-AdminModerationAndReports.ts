@@ -4,6 +4,33 @@ export class AdminModerationAndReports20261116100000 implements MigrationInterfa
   name = 'AdminModerationAndReports20261116100000';
 
   async up(queryRunner: QueryRunner): Promise<void> {
+    const backupTableCount = Number(
+      (
+        await queryRunner.query(
+          "SELECT COUNT(*) AS COUNT FROM USER_TABLES WHERE TABLE_NAME = 'ADMIN_MIGRATION_JOB_STATUS'",
+        )
+      )[0]?.COUNT ?? 0,
+    );
+    if (backupTableCount === 0) {
+      await queryRunner.query(`
+        CREATE TABLE ADMIN_MIGRATION_JOB_STATUS AS
+        SELECT ID AS JOB_ID, STATUS AS ORIGINAL_STATUS
+        FROM JOBS
+        WHERE 1 = 0
+      `);
+    }
+
+    await queryRunner.query(`
+      INSERT INTO ADMIN_MIGRATION_JOB_STATUS (JOB_ID, ORIGINAL_STATUS)
+      SELECT ID, STATUS
+      FROM JOBS
+      WHERE STATUS = 'OPEN'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM ADMIN_MIGRATION_JOB_STATUS
+          WHERE JOB_ID = JOBS.ID
+        )
+    `);
     await queryRunner.query(`
       UPDATE JOBS
       SET STATUS = 'APPROVED'
@@ -53,13 +80,63 @@ export class AdminModerationAndReports20261116100000 implements MigrationInterfa
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query('DROP INDEX IX_REPORTS_STATUS');
-    await queryRunner.query('DROP TABLE REPORTS PURGE');
+    const backupTableCount = Number(
+      (
+        await queryRunner.query(
+          "SELECT COUNT(*) AS COUNT FROM USER_TABLES WHERE TABLE_NAME = 'ADMIN_MIGRATION_JOB_STATUS'",
+        )
+      )[0]?.COUNT ?? 0,
+    );
+    if (backupTableCount === 0) {
+      throw new Error(
+        'Cannot safely revert the job status migration because its original-status backup is missing.',
+      );
+    }
+
+    const reportTableCount = Number(
+      (
+        await queryRunner.query(
+          "SELECT COUNT(*) AS COUNT FROM USER_TABLES WHERE TABLE_NAME = 'REPORTS'",
+        )
+      )[0]?.COUNT ?? 0,
+    );
+    if (reportTableCount > 0) {
+      const reportCount = Number(
+        (await queryRunner.query('SELECT COUNT(*) AS COUNT FROM REPORTS'))[0]
+          ?.COUNT ?? 0,
+      );
+      if (reportCount > 0) {
+        throw new Error(
+          'Cannot safely drop REPORTS while it contains data; archive or remove reports before reverting this migration.',
+        );
+      }
+    }
+
+    const statusIndexCount = Number(
+      (
+        await queryRunner.query(
+          "SELECT COUNT(*) AS COUNT FROM USER_INDEXES WHERE INDEX_NAME = 'IX_REPORTS_STATUS'",
+        )
+      )[0]?.COUNT ?? 0,
+    );
+    if (statusIndexCount > 0) {
+      await queryRunner.query('DROP INDEX IX_REPORTS_STATUS');
+    }
     await queryRunner.query(`
       UPDATE JOBS
-      SET STATUS = 'OPEN'
-      WHERE STATUS = 'APPROVED'
+      SET STATUS = (
+        SELECT ORIGINAL_STATUS
+        FROM ADMIN_MIGRATION_JOB_STATUS
+        WHERE JOB_ID = JOBS.ID
+      )
+      WHERE ID IN (
+        SELECT JOB_ID FROM ADMIN_MIGRATION_JOB_STATUS
+      )
     `);
+    if (reportTableCount > 0) {
+      await queryRunner.query('DROP TABLE REPORTS PURGE');
+    }
+    await queryRunner.query('DROP TABLE ADMIN_MIGRATION_JOB_STATUS PURGE');
     await queryRunner.query("ALTER TABLE JOBS MODIFY STATUS DEFAULT 'OPEN'");
   }
 }

@@ -16,6 +16,7 @@ import { JobService } from '../jobs/jobs.service.js';
 import { JobStatus } from '../jobs/entities/jobs.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
 import { NotificationsService } from '../notification/notification.service.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 
 @Injectable()
 export class ApplicationsService {
@@ -29,6 +30,26 @@ export class ApplicationsService {
     private readonly userRepository: Repository<User>,
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  getAdminApplications(pagination: PaginationQueryDto) {
+    return this.applicationRepository.find({
+      relations: { job: { company: true } },
+      order: { appliedAt: 'DESC' },
+      skip: (pagination.page - 1) * pagination.limit,
+      take: pagination.limit,
+    });
+  }
+
+  async getAdminApplicationById(applicationId: number) {
+    const application = await this.applicationRepository.findOne({
+      where: { applicationId },
+      relations: { job: { company: true } },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found.');
+    }
+    return application;
+  }
 
   async findByEmployer(employerId: number): Promise<Application[]> {
     return this.applicationRepository.find({

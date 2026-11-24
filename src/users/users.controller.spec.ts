@@ -4,19 +4,14 @@ import { ForbiddenException } from '@nestjs/common';
 import { UsersController } from './users.controller.js';
 import { UsersService } from './users.service.js';
 import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
-import { RolesGuard } from '../authentication/guards/roles.guards.js';
-import { ROLES_KEY } from '../authentication/roles.decorator.js';
 
 describe('UsersController', () => {
   let controller: UsersController;
 
   const usersService = {
-    findAllUsers: vi.fn(),
     findUser: vi.fn(),
     updateUser: vi.fn(),
     removeUser: vi.fn(),
-    deactivateUser: vi.fn(),
-    activateUser: vi.fn(),
   };
 
   const reqFor = (
@@ -39,38 +34,9 @@ describe('UsersController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('requires JWT and role guards on all user routes', () => {
+  it('requires JWT authentication on user routes', () => {
     const guards = Reflect.getMetadata('__guards__', UsersController);
     expect(guards).toContain(JwtAuthGuard);
-    expect(guards).toContain(RolesGuard);
-  });
-
-  it('restricts the user list to administrators', () => {
-    const roles = Reflect.getMetadata(
-      ROLES_KEY,
-      UsersController.prototype.findAll,
-    );
-    expect(roles).toEqual(['admin']);
-  });
-
-  it('restricts account status actions to administrators', () => {
-    expect(
-      Reflect.getMetadata(ROLES_KEY, UsersController.prototype.deactivate),
-    ).toEqual(['admin']);
-    expect(
-      Reflect.getMetadata(ROLES_KEY, UsersController.prototype.activate),
-    ).toEqual(['admin']);
-  });
-
-  it('delegates account deactivation and activation to the service', async () => {
-    usersService.deactivateUser.mockResolvedValue({ message: 'deactivated' });
-    usersService.activateUser.mockResolvedValue({ message: 'activated' });
-
-    await controller.deactivate(8, reqFor(9, 'admin'));
-    await controller.activate(8);
-
-    expect(usersService.deactivateUser).toHaveBeenCalledWith(8, 9);
-    expect(usersService.activateUser).toHaveBeenCalledWith(8);
   });
 
   describe('findOne', () => {

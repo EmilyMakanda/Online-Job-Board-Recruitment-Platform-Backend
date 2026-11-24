@@ -5,10 +5,12 @@ import { Company } from '../company/entities/company.entity.js';
 import { Job } from './entities/jobs.entity.js';
 import { JobController } from './jobs.controller.js';
 import { JobService } from './jobs.service.js';
+import { AdminAuditModule } from '../admin/admin-audit.module.js';
+import { JobsAdminController } from './jobs-admin.controller.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Job, User, Company])],
-  controllers: [JobController],
+  imports: [TypeOrmModule.forFeature([Job, User, Company]), AdminAuditModule],
+  controllers: [JobController, JobsAdminController],
   providers: [JobService],
   exports: [JobService],
 })

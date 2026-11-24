@@ -3,12 +3,36 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AdminController } from './admin.controller.js';
 import { AdminService } from './admin.service.js';
+import { UsersAdminController } from '../users/users-admin.controller.js';
+import { UsersService } from '../users/users.service.js';
+import { CompanyAdminController } from '../company/company-admin.controller.js';
+import { CompanyService } from '../company/company.service.js';
+import { JobsAdminController } from '../jobs/jobs-admin.controller.js';
+import { JobService } from '../jobs/jobs.service.js';
+import { ApplicationsAdminController } from '../applications/applications-admin.controller.js';
+import { ApplicationsService } from '../applications/applications.service.js';
+import { ReportsAdminController } from '../reports/reports-admin.controller.js';
+import { ReportsService } from '../reports/reports.service.js';
 
 describe('Admin OpenAPI documentation', () => {
   it('documents admin paths, bearer authorization, request DTOs, and safe response schemas', async () => {
     const module = await Test.createTestingModule({
-      controllers: [AdminController],
-      providers: [{ provide: AdminService, useValue: {} }],
+      controllers: [
+        AdminController,
+        UsersAdminController,
+        CompanyAdminController,
+        JobsAdminController,
+        ApplicationsAdminController,
+        ReportsAdminController,
+      ],
+      providers: [
+        { provide: AdminService, useValue: {} },
+        { provide: UsersService, useValue: {} },
+        { provide: CompanyService, useValue: {} },
+        { provide: JobService, useValue: {} },
+        { provide: ApplicationsService, useValue: {} },
+        { provide: ReportsService, useValue: {} },
+      ],
     }).compile();
     const app = module.createNestApplication();
     await app.init();
@@ -68,12 +92,16 @@ describe('Admin OpenAPI documentation', () => {
       document.paths['/admin/users/{id}/status']?.patch?.requestBody,
     ).toBeDefined();
     expect(
+      document.paths['/admin/users/{id}/role']?.patch?.requestBody,
+    ).toBeDefined();
+    expect(
       document.paths['/admin/companies/{id}/verify']?.patch?.requestBody,
     ).toBeDefined();
     expect(
       document.paths['/admin/reports/{id}/status']?.patch?.requestBody,
     ).toBeDefined();
     expect(document.paths['/admin/applications/{id}']?.get).toBeDefined();
+    expect(document.paths['/admin/audit-logs']?.get).toBeDefined();
 
     const userSchema = document.components?.schemas?.AdminUserResponseDto;
     expect(userSchema).toBeDefined();
@@ -102,7 +130,11 @@ describe('Admin OpenAPI documentation', () => {
       'properties.status.enum',
       ['resolved', 'dismissed'],
     );
+    expect(document.components?.schemas?.UpdateUserRoleDto).toHaveProperty(
+      'properties.role.enum',
+      ['job_seeker', 'employer', 'admin'],
+    );
 
     await app.close();
-  });
+  }, 15_000);
 });

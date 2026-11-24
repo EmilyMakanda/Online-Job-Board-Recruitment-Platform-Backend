@@ -10,6 +10,10 @@ import { Repository } from 'typeorm';
 
 import { Company } from './entities/company.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
+import { Job, JobStatus } from '../jobs/entities/jobs.entity.js';
+import { AdminAuditService } from '../admin/admin-audit.service.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { UpdateCompanyVerificationDto } from '../admin/dto/update-company-verification.js';
 import { CreateCompanyDto } from './dto/create-company.dto.js';
 import { UpdateCompanyDto } from './dto/update-company.dto.js';
 
@@ -21,7 +25,80 @@ export class CompanyService {
 
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+
+    @InjectRepository(Job)
+    private readonly jobRepository: Repository<Job>,
+
+    private readonly adminAuditService: AdminAuditService,
   ) {}
+
+  getAdminCompanies(pagination: PaginationQueryDto) {
+    return this.companyRepository.find({
+      order: { companyId: 'ASC' },
+      skip: (pagination.page - 1) * pagination.limit,
+      take: pagination.limit,
+    });
+  }
+
+  getAdminPendingCompanies(pagination: PaginationQueryDto) {
+    return this.companyRepository.find({
+      where: { verificationStatus: 'pending' },
+      order: { companyId: 'ASC' },
+      skip: (pagination.page - 1) * pagination.limit,
+      take: pagination.limit,
+    });
+  }
+
+  async updateAdminVerification(
+    companyId: number,
+    actorId: number,
+    dto: UpdateCompanyVerificationDto,
+  ) {
+    return this.companyRepository.manager.transaction(async (manager) => {
+      const companies = manager.getRepository(Company);
+      const company = await companies.findOne({ where: { companyId } });
+      if (!company) {
+        throw new NotFoundException(
+          `Company with ID ${companyId} was not found`,
+        );
+      }
+
+      const from = company.verificationStatus;
+      company.verificationStatus = dto.verificationStatus;
+      company.verifiedAt =
+        dto.verificationStatus === 'verified' ? new Date() : null;
+      await companies.save(company);
+
+      if (dto.verificationStatus === 'rejected') {
+        const jobs = manager.getRepository(Job);
+        const approvedJobs = await jobs.find({
+          where: { company: { companyId }, status: JobStatus.APPROVED },
+        });
+        if (approvedJobs.length) {
+          await jobs.save(
+            approvedJobs.map((job) => ({ ...job, status: JobStatus.REJECTED })),
+          );
+        }
+      }
+
+      await this.adminAuditService.write(manager, {
+        actorId,
+        action: 'company.verification.update',
+        targetType: 'company',
+        targetId: String(companyId),
+        details: {
+          from,
+          to: dto.verificationStatus,
+          revokedApprovedJobs: dto.verificationStatus === 'rejected',
+        },
+      });
+
+      return {
+        message: 'Company verification status updated successfully.',
+        company,
+      };
+    });
+  }
 
   async create(
     employerId: number,

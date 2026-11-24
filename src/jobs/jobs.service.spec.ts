@@ -9,6 +9,7 @@ import { JobStatus } from './entities/jobs.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
 import { Company } from '../company/entities/company.entity.js';
 import { JobService } from './jobs.service.js';
+import { AdminAuditService } from '../admin/admin-audit.service.js';
 
 describe('JobService', () => {
   const jobRepository = {
@@ -19,16 +20,27 @@ describe('JobService', () => {
     remove: vi.fn(),
     createQueryBuilder: vi.fn(),
   };
+  const auditService = { write: vi.fn() };
+  const transactionManager = {
+    getRepository: vi.fn(() => jobRepository),
+  };
+  jobRepository.manager = {
+    transaction: vi.fn((callback) => callback(transactionManager)),
+  };
   const userRepository = { findOne: vi.fn() };
   const companyRepository = { findOneBy: vi.fn() };
   let service: JobService;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    jobRepository.findOne.mockResolvedValue(null);
+    jobRepository.save.mockImplementation(async (job) => job);
+    auditService.write.mockResolvedValue({});
     service = new JobService(
       jobRepository as unknown as Repository<Job>,
       userRepository as unknown as Repository<User>,
       companyRepository as unknown as Repository<Company>,
+      auditService as unknown as AdminAuditService,
     );
   });
 
@@ -103,6 +115,34 @@ describe('JobService', () => {
       relations: { company: true },
       order: { createdAt: 'DESC' },
     });
+  });
+
+  it('approves only pending jobs from verified companies and audits the decision', async () => {
+    jobRepository.findOne.mockResolvedValue({
+      id: 'job-id',
+      status: JobStatus.PENDING,
+      company: { verificationStatus: 'verified' },
+    });
+
+    await expect(service.approveAdminJob('job-id', 11)).resolves.toMatchObject({
+      status: JobStatus.APPROVED,
+    });
+    expect(auditService.write).toHaveBeenCalledWith(
+      transactionManager,
+      expect.objectContaining({
+        actorId: 11,
+        action: 'job.approve',
+        targetId: 'job-id',
+      }),
+    );
+
+    jobRepository.findOne.mockResolvedValue({
+      id: 'job-id',
+      status: JobStatus.REMOVED,
+      company: { verificationStatus: 'verified' },
+    });
+    await expect(service.approveAdminJob('job-id', 11)).rejects.toThrow();
+    expect(jobRepository.save).toHaveBeenCalledTimes(1);
   });
 
   it('does not return another employer listing by ID', async () => {

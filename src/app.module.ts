@@ -14,6 +14,7 @@ import { NotificationsModule } from './notification/notification.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { AdminModerationAndReports20261116100000 } from './database/migrations/20261116100000-AdminModerationAndReports.js';
+import { AdminAuditLogs20261124170000 } from './database/migrations/20261124170000-AdminAuditLogs.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -42,7 +43,10 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
         serviceName: config.get<string>('DB_SERVICE_NAME'),
         username: config.get<string>('DB_USERNAME'),
         password: config.get<string>('DB_PASSWORD'),
-        migrations: [AdminModerationAndReports20261116100000],
+        migrations: [
+          AdminModerationAndReports20261116100000,
+          AdminAuditLogs20261124170000,
+        ],
         migrationsRun: false,
         autoLoadEntities: true,
         synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',

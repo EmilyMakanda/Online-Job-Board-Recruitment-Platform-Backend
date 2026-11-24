@@ -55,6 +55,14 @@ export class AdminUserStatusResponseDto {
   user: AdminUserResponseDto;
 }
 
+export class AdminUserRoleResponseDto {
+  @ApiProperty({ example: 'User role updated successfully.' })
+  message: string;
+
+  @ApiProperty({ type: AdminUserResponseDto })
+  user: AdminUserResponseDto;
+}
+
 export class AdminCompanyResponseDto {
   @ApiProperty({ example: 4 })
   companyId: number;

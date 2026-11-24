@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -12,6 +13,8 @@ import { Job } from './entities/jobs.entity.js';
 import { JobStatus } from './entities/jobs.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
 import { Company } from '../company/entities/company.entity.js';
+import { AdminAuditService } from '../admin/admin-audit.service.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 
 @Injectable()
 export class JobService {
@@ -22,7 +25,107 @@ export class JobService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Company)
     private readonly companyRepository: Repository<Company>,
+    private readonly adminAuditService: AdminAuditService,
   ) {}
+
+  getAdminJobs(pagination: PaginationQueryDto) {
+    return this.jobRepository.find({
+      relations: { company: true },
+      order: { createdAt: 'DESC' },
+      skip: (pagination.page - 1) * pagination.limit,
+      take: pagination.limit,
+    });
+  }
+
+  async approveAdminJob(id: string, actorId: number) {
+    return this.jobRepository.manager.transaction(async (manager) => {
+      const jobs = manager.getRepository(Job);
+      const job = await jobs.findOne({
+        where: { id },
+        relations: { company: true },
+      });
+      if (!job) {
+        throw new NotFoundException(`Job listing with ID "${id}" not found`);
+      }
+      if (job.status !== JobStatus.PENDING) {
+        throw new ConflictException('Only pending jobs can be approved.');
+      }
+      if (job.company?.verificationStatus !== 'verified') {
+        throw new ConflictException(
+          'A job can only be approved when its company is verified.',
+        );
+      }
+
+      job.status = JobStatus.APPROVED;
+      await jobs.save(job);
+      await this.adminAuditService.write(manager, {
+        actorId,
+        action: 'job.approve',
+        targetType: 'job',
+        targetId: id,
+        details: { from: JobStatus.PENDING, to: JobStatus.APPROVED },
+      });
+      return job;
+    });
+  }
+
+  async rejectAdminJob(id: string, actorId: number) {
+    return this.jobRepository.manager.transaction(async (manager) => {
+      const jobs = manager.getRepository(Job);
+      const job = await jobs.findOne({
+        where: { id },
+        relations: { company: true },
+      });
+      if (!job) {
+        throw new NotFoundException(`Job listing with ID "${id}" not found`);
+      }
+      if (job.status !== JobStatus.PENDING) {
+        throw new ConflictException('Only pending jobs can be rejected.');
+      }
+
+      job.status = JobStatus.REJECTED;
+      await jobs.save(job);
+      await this.adminAuditService.write(manager, {
+        actorId,
+        action: 'job.reject',
+        targetType: 'job',
+        targetId: id,
+        details: { from: JobStatus.PENDING, to: JobStatus.REJECTED },
+      });
+      return job;
+    });
+  }
+
+  async removeAdminJob(id: string, actorId: number) {
+    return this.jobRepository.manager.transaction(async (manager) => {
+      const jobs = manager.getRepository(Job);
+      const job = await jobs.findOne({
+        where: { id },
+        relations: { company: true },
+      });
+      if (!job) {
+        throw new NotFoundException(`Job listing with ID "${id}" not found`);
+      }
+      if (job.status === JobStatus.REMOVED) {
+        throw new ConflictException('The job has already been removed.');
+      }
+
+      const from = job.status;
+      job.status = JobStatus.REMOVED;
+      await jobs.save(job);
+      await this.adminAuditService.write(manager, {
+        actorId,
+        action: 'job.remove',
+        targetType: 'job',
+        targetId: id,
+        details: { from, to: JobStatus.REMOVED },
+      });
+      return {
+        message: 'Job posting removed from public listings.',
+        job,
+      };
+    });
+  }
 
   // Creates a job listing for the authenticated employer.
   async createJob(dto: CreateJobDto, userId: number) {

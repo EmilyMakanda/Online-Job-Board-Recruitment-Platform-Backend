@@ -25,11 +25,14 @@ We have updated the project infrastructure to standardize local database configu
 Follow these steps whenever pulling updates or setting up your environment on a new machine.
 
 ### 1. Prerequisites
+
 Ensure you have the following installed locally:
+
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (running)
 - Node.js (v18+) and `npm`
 
 ### 2. Configure Environment Variables (`.env`)
+
 Create a `.env` file in the root directory (`job-board-backend/.env`) if it does not exist yet. Ensure the database credentials match `docker-compose.yml`:
 
 ```env
@@ -50,6 +53,7 @@ JWT_SECRET=your_jwt_secret_key_here
 > ⚠️ **Note:** Do **NOT** commit your local `.env` file to Git.
 
 ### 3. Install Project Dependencies
+
 Run the following command to download new packages (`typeorm`, `oracledb`, `@nestjs/config`):
 
 ```bash
@@ -57,6 +61,7 @@ npm install
 ```
 
 ### 4. Start the Oracle Database
+
 Launch the database container using Docker Compose:
 
 ```bash
@@ -77,9 +82,10 @@ Wait until you see `DATABASE IS READY TO USE!` in the logs, then press `Ctrl + C
 npm run start:dev
 ```
 
-When started, TypeORM will connect to Oracle 21c and automatically sync entities, creating or updating database tables as needed.
-The application does not currently configure TypeORM migrations. When using a
-database with `DB_SYNCHRONIZE` disabled, apply this schema change through your
+When started, TypeORM connects to Oracle 21c. Schema synchronization is
+controlled by `DB_SYNCHRONIZE`; keep it disabled in production. Migrations are
+configured but do not run automatically at application startup. When using a
+database with synchronization disabled, apply this schema change through your
 normal Oracle change process before deploying the account-status code:
 
 ```sql
@@ -93,21 +99,28 @@ uses the `User` entity definition to add the column. Do not enable
 
 Admin moderation adds no job columns; existing `JOBS.STATUS` values fit the
 existing `VARCHAR2` column. Before deploying with synchronization disabled,
-apply the Oracle-compatible TypeORM migration in
-`src/database/migrations/20261116100000-AdminModerationAndReports.ts` with
-`npm run migration:run` after setting the existing `DB_*` environment values.
-It changes existing `OPEN` jobs to `APPROVED` so their visibility is preserved
-and creates the `REPORTS` table and status index. This project does not
-automatically execute migrations at startup; do not enable schema
-synchronization in production as a substitute. The standalone TypeORM CLI
-reads `DB_*` values from the process environment; export them before invoking
-the migration command if they are otherwise only stored in a local `.env`.
+apply the Oracle-compatible TypeORM migrations with `npm run migration:run`
+after setting the existing `DB_*` environment values. The migrations convert
+legacy `OPEN` jobs to `APPROVED`, create the `REPORTS` table and status index,
+and create `ADMIN_AUDIT_LOGS` for privileged admin actions. Migrations do not
+run automatically at application startup; do not enable schema synchronization
+in production as a substitute. The standalone TypeORM CLI reads `DB_*` values
+from the process environment; export them before invoking the migration command
+if they are otherwise only stored in a local `.env`.
+
+The admin audit and job-status migrations refuse unsafe rollbacks when audit
+records, report records, or the original job-status backup are missing/present
+in ways that would cause data loss. Archive required records and assess the job
+status impact before reverting migrations. Databases that already ran the
+original job-status migration before its rollback backup was added cannot
+automatically restore the pre-migration statuses.
 
 ---
 
 ## 🚨 Troubleshooting Guide ("If Anything Breaks")
 
 ### Issue 1: Port `1521` is Already Allocated
+
 **Symptom:**  
 `Error response from daemon: driver failed programming external connectivity on endpoint ... Bind for 0.0.0.0:1521 failed: port is already allocated`
 
@@ -115,6 +128,7 @@ the migration command if they are otherwise only stored in a local `.env`.
 Another local Oracle instance, background service, or leftover Docker container is already using port `1521`.
 
 **Fix:**
+
 1. Check running Docker containers:
    ```bash
    docker ps
@@ -131,6 +145,7 @@ Another local Oracle instance, background service, or leftover Docker container 
 ---
 
 ### Issue 2: `ORA-12514` / Connection Refused
+
 **Symptom:**  
 NestJS crashes on start with `Error: ORA-12514: TNS:listener does not currently know of service requested in connect descriptor` or connection refused.
 
@@ -138,6 +153,7 @@ NestJS crashes on start with `Error: ORA-12514: TNS:listener does not currently 
 NestJS attempted to connect while Oracle was still performing its internal initial boot sequence.
 
 **Fix:**
+
 1. Verify database readiness:
    ```bash
    docker compose logs oracle-db
@@ -148,6 +164,7 @@ NestJS attempted to connect while Oracle was still performing its internal initi
 ---
 
 ### Issue 3: Corrupted Database State or Entity Schema Conflicts
+
 **Symptom:**  
 TypeORM entity schema synchronization fails or throws SQL sequence/table errors after merging code from `main`.
 
@@ -168,6 +185,7 @@ npm run start:dev
 ---
 
 ### Issue 4: Missing Dependencies or `node_modules` Mismatch
+
 **Symptom:**  
 `Cannot find module ...` or TypeScript build failures after pulling changes.
 
@@ -178,7 +196,8 @@ Clean install all dependencies:
 rm -rf node_modules package-lock.json
 npm install
 ```
-*(On Windows PowerShell, use `Remove-Item -Recurse -Force node_modules, package-lock.json`)*
+
+_(On Windows PowerShell, use `Remove-Item -Recurse -Force node_modules, package-lock.json`)_
 
 ---
 

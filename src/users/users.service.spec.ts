@@ -7,7 +7,8 @@ import {
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { User } from '../authentication/entities/user.entity.js';
-import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { Company } from '../company/entities/company.entity.js';
+import { AdminAuditService } from '../admin/admin-audit.service.js';
 import { UsersService } from './users.service.js';
 
 describe('UsersService', () => {
@@ -22,14 +23,36 @@ describe('UsersService', () => {
     save: vi.fn(),
     remove: vi.fn(),
   };
+  const companyRepo = {
+    find: vi.fn(),
+    findOneBy: vi.fn(),
+  };
+  const adminAuditService = { write: vi.fn() };
+  const transactionUserRepo = {
+    findOne: vi.fn(),
+    find: vi.fn(),
+    save: vi.fn(),
+  };
+  const transactionManager = {
+    getRepository: vi.fn(() => transactionUserRepo),
+  };
+  userRepo.manager = {
+    transaction: vi.fn((callback) => callback(transactionManager)),
+  };
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    transactionUserRepo.findOne.mockResolvedValue(null);
+    transactionUserRepo.find.mockResolvedValue([]);
+    transactionUserRepo.save.mockImplementation(async (user) => user);
+    adminAuditService.write.mockResolvedValue({});
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: getRepositoryToken(User), useValue: userRepo },
+        { provide: getRepositoryToken(Company), useValue: companyRepo },
+        { provide: AdminAuditService, useValue: adminAuditService },
       ],
     }).compile();
 
@@ -67,21 +90,6 @@ describe('UsersService', () => {
 
       await expect(service.createUser(dto)).rejects.toThrow(ConflictException);
       expect(userRepo.save).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('findAllUsers', () => {
-    it('returns only the requested page of users', async () => {
-      userRepo.find.mockResolvedValue([{ id: 1 }, { id: 2 }]);
-      const pagination = Object.assign(new PaginationQueryDto(), {
-        page: 2,
-        limit: 10,
-      });
-
-      await expect(service.findAllUsers(pagination)).resolves.toHaveLength(2);
-      expect(userRepo.find).toHaveBeenCalledWith(
-        expect.objectContaining({ skip: 10, take: 10 }),
-      );
     });
   });
 
@@ -125,65 +133,73 @@ describe('UsersService', () => {
 
   describe('removeUser', () => {
     it('removes an existing user', async () => {
-      const user = { id: 1 };
+      const user = { id: 1, role: 'job_seeker' };
       userRepo.findOne.mockResolvedValue(user);
 
       await service.removeUser(1);
 
       expect(userRepo.remove).toHaveBeenCalledWith(user);
     });
-  });
 
-  describe('deactivateUser', () => {
-    it('sets the account inactive and saves it', async () => {
-      const user = { id: 4, isActive: 1 };
-      userRepo.findOne.mockResolvedValue(user);
-      userRepo.save.mockImplementation(async (savedUser) => savedUser);
+    it('prevents self-service deletion of administrator accounts', async () => {
+      userRepo.findOne.mockResolvedValue({ id: 1, role: 'admin' });
 
-      await expect(service.deactivateUser(4, 9)).resolves.toEqual({
-        message: 'User with ID 4 deactivated successfully',
+      await expect(service.removeUser(1)).rejects.toThrow(ForbiddenException);
+      expect(userRepo.remove).not.toHaveBeenCalled();
+    });
+
+    describe('admin role operations', () => {
+      it('prevents an administrator from deactivating their own account', async () => {
+        await expect(
+          service.updateAdminUserStatus(3, 3, { isActive: 0 }),
+        ).rejects.toThrow(ForbiddenException);
+        expect(userRepo.manager.transaction).not.toHaveBeenCalled();
       });
-      expect(user.isActive).toBe(0);
-      expect(userRepo.save).toHaveBeenCalledWith(user);
-    });
 
-    it('throws NotFoundException for an unknown account', async () => {
-      userRepo.findOne.mockResolvedValue(null);
+      it('prevents deactivating the last active administrator', async () => {
+        transactionUserRepo.findOne.mockResolvedValue({
+          id: 3,
+          role: 'admin',
+          isActive: 1,
+        });
+        transactionUserRepo.find.mockResolvedValue([{ id: 3 }]);
 
-      await expect(service.deactivateUser(404, 9)).rejects.toThrow(
-        NotFoundException,
-      );
-      expect(userRepo.save).not.toHaveBeenCalled();
-    });
-
-    it('prevents an administrator from deactivating their own account', async () => {
-      await expect(service.deactivateUser(4, 4)).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(userRepo.save).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('activateUser', () => {
-    it('sets the account active and saves it', async () => {
-      const user = { id: 4, isActive: 0 };
-      userRepo.findOne.mockResolvedValue(user);
-      userRepo.save.mockImplementation(async (savedUser) => savedUser);
-
-      await expect(service.activateUser(4)).resolves.toEqual({
-        message: 'User with ID 4 activated successfully',
+        await expect(
+          service.updateAdminUserStatus(3, 11, { isActive: 0 }),
+        ).rejects.toThrow(ConflictException);
+        expect(transactionUserRepo.save).not.toHaveBeenCalled();
+        expect(adminAuditService.write).not.toHaveBeenCalled();
       });
-      expect(user.isActive).toBe(1);
-      expect(userRepo.save).toHaveBeenCalledWith(user);
-    });
 
-    it('throws NotFoundException for an unknown account', async () => {
-      userRepo.findOne.mockResolvedValue(null);
+      it('updates account status and writes the audit record in the transaction', async () => {
+        transactionUserRepo.findOne.mockResolvedValue({
+          id: 12,
+          role: 'employer',
+          isActive: 1,
+        });
+        userRepo.findOne.mockResolvedValue({
+          id: 12,
+          role: 'employer',
+          isActive: 0,
+        });
 
-      await expect(service.activateUser(404)).rejects.toThrow(
-        NotFoundException,
-      );
-      expect(userRepo.save).not.toHaveBeenCalled();
+        await expect(
+          service.updateAdminUserStatus(12, 11, { isActive: 0 }),
+        ).resolves.toMatchObject({
+          message: 'User account deactivated successfully.',
+          user: { id: 12, isActive: 0 },
+        });
+        expect(adminAuditService.write).toHaveBeenCalledWith(
+          transactionManager,
+          expect.objectContaining({
+            actorId: 11,
+            action: 'user.deactivate',
+            targetType: 'user',
+            targetId: '12',
+            details: { from: 1, to: 0 },
+          }),
+        );
+      });
     });
   });
 });

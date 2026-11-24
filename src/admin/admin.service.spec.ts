@@ -1,124 +1,41 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+
 import { User } from '../authentication/entities/user.entity.js';
-import { Company } from '../company/entities/company.entity.js';
-import { Job } from '../jobs/entities/jobs.entity.js';
-import { Application } from '../applications/entities/application.entity.js';
-import { Report } from '../reports/entities/report.entity.js';
-import { AdminService } from './admin.service.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { Application } from '../applications/entities/application.entity.js';
+import { Job, JobStatus } from '../jobs/entities/jobs.entity.js';
+import { AdminAuditLog } from './entities/admin-audit-log.entity.js';
+import { AdminService } from './admin.service.js';
 
 describe('AdminService', () => {
+  const userRepository = { count: vi.fn() };
+  const jobRepository = { count: vi.fn() };
+  const applicationRepository = { count: vi.fn() };
+  const auditLogRepository = { find: vi.fn() };
   let service: AdminService;
-  const userRepository = {
-    find: vi.fn(),
-    findOne: vi.fn(),
-    save: vi.fn(),
-    count: vi.fn(),
-  };
-  const companyRepository = {
-    find: vi.fn(),
-    findOneBy: vi.fn(),
-    save: vi.fn(),
-  };
-  const jobRepository = {
-    find: vi.fn(),
-    findOne: vi.fn(),
-    findOneBy: vi.fn(),
-    save: vi.fn(),
-    count: vi.fn(),
-  };
-  const applicationRepository = {
-    find: vi.fn(),
-    findOne: vi.fn(),
-    count: vi.fn(),
-  };
-  const reportRepository = { find: vi.fn(), findOneBy: vi.fn(), save: vi.fn() };
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    const module: TestingModule = await Test.createTestingModule({
+    const module = await Test.createTestingModule({
       providers: [
         AdminService,
         { provide: getRepositoryToken(User), useValue: userRepository },
-        { provide: getRepositoryToken(Company), useValue: companyRepository },
         { provide: getRepositoryToken(Job), useValue: jobRepository },
         {
           provide: getRepositoryToken(Application),
           useValue: applicationRepository,
         },
-        { provide: getRepositoryToken(Report), useValue: reportRepository },
+        {
+          provide: getRepositoryToken(AdminAuditLog),
+          useValue: auditLogRepository,
+        },
       ],
     }).compile();
-
-    service = module.get<AdminService>(AdminService);
+    service = module.get(AdminService);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
-
-  it('prevents an administrator from deactivating their own account', async () => {
-    await expect(service.deactivateUser(3, 3)).rejects.toThrow(
-      ForbiddenException,
-    );
-    expect(userRepository.findOne).not.toHaveBeenCalled();
-  });
-
-  it('selects only safe fields when listing user accounts', async () => {
-    userRepository.find.mockResolvedValue([]);
-
-    await service.getAllUsers();
-
-    expect(userRepository.find).toHaveBeenCalledWith(
-      expect.objectContaining({
-        select: expect.not.objectContaining({
-          password: true,
-          emailVerificationTokenHash: true,
-          emailVerificationTokenExpiresAt: true,
-        }),
-      }),
-    );
-  });
-
-  it('bounds every admin collection query using the requested page', async () => {
-    const pagination = Object.assign(new PaginationQueryDto(), {
-      page: 3,
-      limit: 20,
-    });
-    userRepository.find.mockResolvedValue([]);
-    companyRepository.find.mockResolvedValue([]);
-    jobRepository.find.mockResolvedValue([]);
-    applicationRepository.find.mockResolvedValue([]);
-    reportRepository.find.mockResolvedValue([]);
-
-    await service.getAllUsers(pagination);
-    await service.getAllEmployers(pagination);
-    await service.getAllCompanies(pagination);
-    await service.getPendingCompanies(pagination);
-    await service.getAllJobs(pagination);
-    await service.getAllApplications(pagination);
-    await service.getAllReports(pagination);
-
-    for (const [options] of userRepository.find.mock.calls) {
-      expect(options).toMatchObject({ skip: 40, take: 20 });
-    }
-    for (const [options] of companyRepository.find.mock.calls) {
-      expect(options).toMatchObject({ skip: 40, take: 20 });
-    }
-    for (const [options] of jobRepository.find.mock.calls) {
-      expect(options).toMatchObject({ skip: 40, take: 20 });
-    }
-    expect(applicationRepository.find).toHaveBeenCalledWith(
-      expect.objectContaining({ skip: 40, take: 20 }),
-    );
-    expect(reportRepository.find).toHaveBeenCalledWith(
-      expect.objectContaining({ skip: 40, take: 20 }),
-    );
-  });
-
-  it('returns counts for every requested system statistic', async () => {
+  it('returns platform statistics', async () => {
     const counts = [10, 5, 3, 2, 8, 2, 4, 1, 13];
     userRepository.count.mockImplementation(async () => counts.shift());
     jobRepository.count.mockImplementation(async () => counts.shift());
@@ -135,38 +52,24 @@ describe('AdminService', () => {
       rejectedJobs: 1,
       totalApplications: 13,
     });
-  });
-
-  it('removes jobs from public listings without deleting their history', async () => {
-    const job = { id: 'job-id', status: 'APPROVED' };
-    jobRepository.findOneBy.mockResolvedValue(job);
-    jobRepository.save.mockResolvedValue(job);
-
-    await expect(service.removeJob('job-id')).resolves.toMatchObject({
-      message: 'Job posting removed from public listings.',
-      job: { status: 'REMOVED' },
-    });
-    expect(jobRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'REMOVED' }),
-    );
-  });
-
-  it('returns application details with related job data', async () => {
-    const application = { applicationId: 7, job: { id: 'job-id' } };
-    applicationRepository.findOne.mockResolvedValue(application);
-
-    await expect(service.getApplicationById(7)).resolves.toBe(application);
-    expect(applicationRepository.findOne).toHaveBeenCalledWith({
-      where: { applicationId: 7 },
-      relations: { job: { company: true } },
+    expect(jobRepository.count).toHaveBeenNthCalledWith(2, {
+      where: { status: JobStatus.APPROVED },
     });
   });
 
-  it('returns not found when the requested application does not exist', async () => {
-    applicationRepository.findOne.mockResolvedValue(null);
+  it('returns paginated audit records, newest first', async () => {
+    auditLogRepository.find.mockResolvedValue([]);
+    const pagination = Object.assign(new PaginationQueryDto(), {
+      page: 2,
+      limit: 25,
+    });
 
-    await expect(service.getApplicationById(404)).rejects.toThrow(
-      'Application with ID 404 was not found',
-    );
+    await service.getAuditLogs(pagination);
+
+    expect(auditLogRepository.find).toHaveBeenCalledWith({
+      order: { createdAt: 'DESC', logId: 'DESC' },
+      skip: 25,
+      take: 25,
+    });
   });
 });
