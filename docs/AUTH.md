@@ -65,9 +65,15 @@ manage account activity; an administrator cannot deactivate their own account.
 Admin collection endpoints and `GET /api/v1/users` accept `page` (default `1`) and
 `limit` (default `50`, maximum `100`) query parameters; results remain arrays
 and are ordered newest first.
-Public registration and profile updates never assign roles. Create or promote
-the first administrator through a trusted operator/database process; do not
-expose administrator role assignment in the public API.
+Public registration and profile updates never assign roles. Bootstrap the
+first administrator with the one-time `npm run seed:admin` command after
+building the project. Set `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD` only in
+the environment used for that command; `ADMIN_SEED_NAME` is optional. The
+command creates a verified admin with a hashed password, does nothing if an
+active, verified admin already exists, and fails if the configured email is
+already used by a non-admin account. Do not expose administrator role
+assignment in the public API or run the seed automatically when the server
+starts.
 
 Authenticated job seekers and employers can submit a report through
 `POST /api/v1/reports`. Administrators review reports through
