@@ -32,6 +32,20 @@ import type { UpdateApplicationStatusDto } from './dto/update-application-status
 const UPLOAD_DIR = join(process.cwd(), 'uploads', 'applications');
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_SUPPORTING_FILES = 5;
+const APPLICATION_ANSWER_KEYS = [
+  'highestEducation',
+  'fieldOfStudy',
+  'yearsOfExperience',
+  'currentEmploymentStatus',
+  'expectedSalary',
+  'noticePeriod',
+  'availableStartDate',
+  'willingToRelocate',
+  'portfolioUrl',
+  'linkedinUrl',
+  'additionalAnswers',
+  'coverLetter',
+] as const;
 const ALLOWED_FILE_TYPES = new Map([
   ['.pdf', 'application/pdf'],
   ['.txt', 'text/plain'],
@@ -112,9 +126,6 @@ export class ApplicationsService {
     let savedApplication: Application;
 
     try {
-      if (!cv) {
-        throw new BadRequestException('CV is required for application.');
-      }
       if (supportingFiles.length > MAX_SUPPORTING_FILES) {
         throw new BadRequestException(
           `No more than ${MAX_SUPPORTING_FILES} supporting files are allowed.`,
@@ -129,6 +140,50 @@ export class ApplicationsService {
         throw new BadRequestException(
           'This job is not accepting applications.',
         );
+      }
+
+      const requirements = job.applicationRequirements ?? [];
+      const requiredFields = requirements.filter(
+        (requirement) =>
+          requirement.isEnabled === 1 && requirement.isRequired === 1,
+      );
+      for (const requirement of requiredFields) {
+        const answer =
+          requirement.fieldKey === 'cv'
+            ? cv
+            : dto[requirement.fieldKey as keyof CreateApplicationDto];
+        if (
+          answer === undefined ||
+          answer === null ||
+          (typeof answer === 'string' && !answer.trim())
+        ) {
+          throw new BadRequestException(
+            `${requirement.fieldLabel} is required for this application.`,
+          );
+        }
+      }
+
+      const enabledKeys = new Set(
+        requirements
+          .filter((requirement) => requirement.isEnabled === 1)
+          .map(({ fieldKey }) => fieldKey),
+      );
+      if (cv && !enabledKeys.has('cv')) {
+        throw new BadRequestException(
+          'This job does not accept a CV document.',
+        );
+      }
+
+      const answers: Record<string, string | number | boolean> = {};
+      for (const key of APPLICATION_ANSWER_KEYS) {
+        const value = dto[key];
+        if (
+          enabledKeys.has(key) &&
+          value !== undefined &&
+          key !== 'coverLetter'
+        ) {
+          answers[key] = value;
+        }
       }
 
       savedApplication = await this.applicationRepository.manager.transaction(
@@ -151,13 +206,24 @@ export class ApplicationsService {
           const application = applications.create({
             job,
             jobSeekerId,
-            coverLetter: dto.coverLetter?.trim() || null,
+            coverLetter: enabledKeys.has('coverLetter')
+              ? dto.coverLetter?.trim() || null
+              : null,
+            answers: JSON.stringify(answers),
             status: ApplicationStatus.SUBMITTED,
           });
           const saved = await applications.save(application);
 
           const records = [
-            this.createDocumentRecord(cv, saved, ApplicationDocumentType.CV),
+            ...(cv && enabledKeys.has('cv')
+              ? [
+                  this.createDocumentRecord(
+                    cv,
+                    saved,
+                    ApplicationDocumentType.CV,
+                  ),
+                ]
+              : []),
             ...supportingFiles.map((file) =>
               this.createDocumentRecord(
                 file,
@@ -281,6 +347,7 @@ export class ApplicationsService {
   private presentApplication(application: Application) {
     return {
       ...application,
+      answers: application.answers ? JSON.parse(application.answers) : {},
       documents: (application.documents ?? []).map((document) => ({
         documentId: document.documentId,
         applicationId: document.applicationId,
