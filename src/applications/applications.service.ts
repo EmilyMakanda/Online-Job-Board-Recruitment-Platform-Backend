@@ -80,7 +80,7 @@ export class ApplicationsService {
 
     const job = await this.jobService.getOneJob(dto.jobId);
 
-    if (job.status !== JobStatus.OPEN) {
+    if (job.status !== JobStatus.APPROVED ){
       throw new BadRequestException(
         'This job is not accepting applications.',
       );
