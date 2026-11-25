@@ -47,7 +47,7 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
         ],
         migrationsRun: false,
         autoLoadEntities: true,
-        synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
+        synchronize: config.get<string>('DB_SYNCHRONIZE') !== 'false',
       }),
     }),
 
