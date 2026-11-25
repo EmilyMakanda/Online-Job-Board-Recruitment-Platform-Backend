@@ -4,12 +4,23 @@ export class AdminModerationAndReports20261116100000 implements MigrationInterfa
   name = 'AdminModerationAndReports20261116100000';
 
   async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
-      UPDATE JOBS
-      SET STATUS = 'APPROVED'
-      WHERE STATUS = 'OPEN'
-    `);
-    await queryRunner.query("ALTER TABLE JOBS MODIFY STATUS DEFAULT 'PENDING'");
+    const jobsTableCount = Number(
+      (
+        await queryRunner.query(
+          "SELECT COUNT(*) AS COUNT FROM USER_TABLES WHERE TABLE_NAME = 'JOBS'",
+        )
+      )[0]?.COUNT ?? 0,
+    );
+    if (jobsTableCount > 0) {
+      await queryRunner.query(`
+        UPDATE JOBS
+        SET STATUS = 'APPROVED'
+        WHERE STATUS = 'OPEN'
+      `);
+      await queryRunner.query(
+        "ALTER TABLE JOBS MODIFY STATUS DEFAULT 'PENDING'",
+      );
+    }
 
     const reportTableCount = Number(
       (
