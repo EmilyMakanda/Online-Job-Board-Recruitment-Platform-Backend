@@ -114,5 +114,13 @@ export class CreateApplicationDto {
   @IsString()
   @MaxLength(2000)
   coverLetter?: string;
-  currentEmploymentStatus: DeepPartial<string | null> | undefined;
+    
+@ApiPropertyOptional({
+  description: 'Applicant current employment status',
+  example: 'Employed',
+})
+@IsOptional()
+@IsString()
+@MaxLength(100)
+currentEmploymentStatus?: string;
 }
