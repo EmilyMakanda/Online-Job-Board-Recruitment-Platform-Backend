@@ -30,7 +30,7 @@ import { Roles } from '../authentication/roles.decorator.js';
 interface AuthenticatedRequest extends Request {
   user: {
     sub: number;
-    role: 'job_seeker' | 'employer';
+    role: 'job_seeker' | 'employer' | 'admin';
   };
 }
 
@@ -67,6 +67,49 @@ export class JobController {
   })
   createJob(@Body() dto: CreateJobDto, @Req() req: AuthenticatedRequest) {
     return this.jobService.createJob(dto, req.user.sub);
+  }
+
+  @Get('admin/pending')
+  @ApiBearerAuth()
+  @Roles('admin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiOperation({ summary: 'List jobs awaiting administrator review' })
+  @ApiResponse({
+    status: 200,
+    description: 'Pending job listings available for review.',
+  })
+  getPendingJobsForReview() {
+    return this.jobService.getPendingJobsForReview();
+  }
+
+  @Patch(':jobID/approve')
+  @ApiBearerAuth()
+  @Roles('admin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiOperation({
+    summary: 'Approve a pending job listing (administrator only)',
+  })
+  @ApiResponse({ status: 200, description: 'The job listing was approved.' })
+  @ApiResponse({
+    status: 400,
+    description: 'The job is not pending or expired.',
+  })
+  @ApiResponse({ status: 403, description: 'The company is not verified.' })
+  approveJob(@Param('jobID') jobID: string) {
+    return this.jobService.approveJob(jobID);
+  }
+
+  @Patch(':jobID/reject')
+  @ApiBearerAuth()
+  @Roles('admin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiOperation({
+    summary: 'Reject a pending job listing (administrator only)',
+  })
+  @ApiResponse({ status: 200, description: 'The job listing was rejected.' })
+  @ApiResponse({ status: 400, description: 'The job is not pending.' })
+  rejectJob(@Param('jobID') jobID: string) {
+    return this.jobService.rejectJob(jobID);
   }
 
   @Patch(':jobID/publish')
