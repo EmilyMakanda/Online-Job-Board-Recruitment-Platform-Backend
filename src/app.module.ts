@@ -1,18 +1,18 @@
-
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { createObserveModule } from '@nestjs/observe';
-
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ApplicationsModule } from './applications/applications.module.js';
 import { AuthenticationModule } from './authentication/authentication.module.js';
 import { JobModule } from './jobs/jobs.module.js';
 import { UsersModule } from './users/users.module.js';
 import { CompanyModule } from './company/company.module.js';
 import { NotificationsModule } from './notification/notification.module.js';
-import { AdminModule } from './admin/admin.module.js';
+import { ReportsModule } from './reports/reports.module.js';
+import { AdminModerationAndReports20261116100000 } from './database/migrations/20261116100000-AdminModerationAndReports.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -31,6 +31,7 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
 
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -41,6 +42,8 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
         serviceName: config.get<string>('DB_SERVICE_NAME'),
         username: config.get<string>('DB_USERNAME'),
         password: config.get<string>('DB_PASSWORD'),
+        migrations: [AdminModerationAndReports20261116100000],
+        migrationsRun: false,
         autoLoadEntities: true,
         synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
       }),
@@ -62,7 +65,7 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
     UsersModule,
     CompanyModule,
     NotificationsModule,
-    AdminModule,
+    ReportsModule,
     ApplicationsModule,
     CompanyModule,
   ],

@@ -18,6 +18,7 @@ import nodemailer from 'nodemailer';
 import { User } from './entities/user.entity.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
+import type { UserRole } from './roles.decorator.js';
 
 @Injectable()
 export class AuthenticationService {
@@ -141,23 +142,25 @@ export class AuthenticationService {
     }
   }
 
-  // Register a new user with the selected role and send an OTP.
+  // Public registration creates job seekers; employer registration is a separate controlled route.
   async register(dto: RegisterDto) {
+    return this.registerWithRole(dto, 'job_seeker');
+  }
+
+  async registerEmployer(dto: RegisterDto) {
+    return this.registerWithRole(dto, 'employer');
+  }
+
+  private async registerWithRole(
+    dto: RegisterDto,
+    role: Exclude<UserRole, 'admin'>,
+  ) {
     const name = dto.name?.trim();
     const email = dto.email?.trim().toLowerCase();
     const password = dto.password;
-    const role = dto.role;
 
-    if (!name || !email || !password || !role) {
-      throw new BadRequestException(
-        'Name, email, password and role are required.',
-      );
-    }
-
-    if (!['job_seeker', 'employer', 'admin'].includes(role)) {
-      throw new BadRequestException(
-        'Role must be either job_seeker or employer.',
-      );
+    if (!name || !email || !password) {
+      throw new BadRequestException('Name, email and password are required.');
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -220,11 +223,13 @@ export class AuthenticationService {
       throw new BadRequestException('Please enter a valid six-digit OTP.');
     }
 
-    const user = await this.userRepository.findOne({
-      where: {
-        emailVerificationTokenHash: this.hashToken(otp),
-      },
-    });
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.emailVerificationTokenExpiresAt')
+      .where('user.emailVerificationTokenHash = :tokenHash', {
+        tokenHash: this.hashToken(otp),
+      })
+      .getOne();
 
     if (!user) {
       throw new BadRequestException('Invalid verification code.');

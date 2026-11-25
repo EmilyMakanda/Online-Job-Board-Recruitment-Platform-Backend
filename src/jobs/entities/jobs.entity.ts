@@ -15,9 +15,12 @@ import { Application } from '../../applications/entities/application.entity.js';
 import { Company } from '../../company/entities/company.entity.js';
 
 export enum JobStatus {
-    OPEN = 'OPEN',
-    CLOSED ='CLOSED',
-    DRAFT = 'DRAFT',
+  DRAFT = 'DRAFT',
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  CLOSED = 'CLOSED',
+  REMOVED = 'REMOVED',
 }
 
 @Entity('jobs')
@@ -34,8 +37,11 @@ export class Job {
   @Column({ type: 'varchar2', length: 100, nullable: false })
   location: string;
 
+  @Column({ type: 'timestamp', nullable: true })
+  deadline: Date | null;
+
   @Index()
-  @Column({ type: 'varchar2', length: 20, default: JobStatus.OPEN })
+  @Column({ type: 'varchar2', length: 20, default: JobStatus.PENDING })
   status: JobStatus;
 
   @ManyToOne(() => User, (user) => user.jobs, { onDelete: 'CASCADE' })

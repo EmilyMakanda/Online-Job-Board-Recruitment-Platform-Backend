@@ -1,8 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { User } from '../authentication/entities/user.entity.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 import { UsersService } from './users.service.js';
 
 describe('UsersService', () => {
@@ -66,10 +71,17 @@ describe('UsersService', () => {
   });
 
   describe('findAllUsers', () => {
-    it('returns all users', async () => {
+    it('returns only the requested page of users', async () => {
       userRepo.find.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+      const pagination = Object.assign(new PaginationQueryDto(), {
+        page: 2,
+        limit: 10,
+      });
 
-      await expect(service.findAllUsers()).resolves.toHaveLength(2);
+      await expect(service.findAllUsers(pagination)).resolves.toHaveLength(2);
+      expect(userRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 10, take: 10 }),
+      );
     });
   });
 
@@ -128,7 +140,7 @@ describe('UsersService', () => {
       userRepo.findOne.mockResolvedValue(user);
       userRepo.save.mockImplementation(async (savedUser) => savedUser);
 
-      await expect(service.deactivateUser(4)).resolves.toEqual({
+      await expect(service.deactivateUser(4, 9)).resolves.toEqual({
         message: 'User with ID 4 deactivated successfully',
       });
       expect(user.isActive).toBe(0);
@@ -138,8 +150,15 @@ describe('UsersService', () => {
     it('throws NotFoundException for an unknown account', async () => {
       userRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.deactivateUser(404)).rejects.toThrow(
+      await expect(service.deactivateUser(404, 9)).rejects.toThrow(
         NotFoundException,
+      );
+      expect(userRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('prevents an administrator from deactivating their own account', async () => {
+      await expect(service.deactivateUser(4, 4)).rejects.toThrow(
+        ForbiddenException,
       );
       expect(userRepo.save).not.toHaveBeenCalled();
     });

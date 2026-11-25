@@ -42,7 +42,10 @@ export class CompanyController {
   @ApiOperation({ summary: 'Register your company (employers only)' })
   @ApiResponse({ status: 201, description: 'Company registered successfully' })
   @ApiResponse({ status: 401, description: 'Missing or invalid token' })
-  @ApiResponse({ status: 403, description: 'Only employers can register a company' })
+  @ApiResponse({
+    status: 403,
+    description: 'Only employers can register a company',
+  })
   @ApiResponse({ status: 409, description: 'Employer already has a company' })
   create(
     @Req() req: AuthenticatedRequest,

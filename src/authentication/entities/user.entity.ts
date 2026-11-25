@@ -24,13 +24,13 @@ export class User {
   @Column({ type: 'varchar2', length: 20, nullable: true })
   phone: string | null;
 
-  @Column({type: 'varchar2',length: 255, nullable: true })
+  @Column({ type: 'varchar2', length: 255, nullable: true })
   resumeUrl: string | null;
 
-  @Column({type: 'varchar2', length: 100, nullable: true })
+  @Column({ type: 'varchar2', length: 100, nullable: true })
   location: string | null;
 
-  @Column({type: 'varchar2', length: 1000, nullable: true })
+  @Column({ type: 'varchar2', length: 1000, nullable: true })
   skills: string | null;
 
   @Column({
@@ -40,7 +40,7 @@ export class User {
   })
   password: string;
 
-  // Differentiates job seekers from employers
+  // Job Seeker, Employer or Admin
   @Column({
     type: 'varchar2',
     length: 20,
@@ -51,19 +51,21 @@ export class User {
   @Column({ type: 'number', default: 0 })
   isEmailVerified: number;
 
-  @OneToMany(()=> Job, (job) => job.postedBy)
-  jobs:Relation<Job[]>;
+  @OneToMany(() => Job, (job) => job.postedBy)
+  jobs: Relation<Job[]>;
 
   @Column({
     type: 'varchar2',
     length: 64,
     nullable: true,
+    select: false,
   })
   emailVerificationTokenHash: string | null;
 
   @Column({
     type: 'timestamp',
     nullable: true,
+    select: false,
   })
   emailVerificationTokenExpiresAt: Date | null;
 

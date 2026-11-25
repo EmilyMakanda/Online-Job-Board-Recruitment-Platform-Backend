@@ -4,7 +4,9 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import nodemailer from 'nodemailer';
 import * as bcrypt from 'bcrypt';
+import { validate } from 'class-validator';
 import { AuthenticationService } from './authentication.service.js';
+import { RegisterDto } from './dto/register.dto.js';
 import { User } from './entities/user.entity.js';
 
 vi.mock('nodemailer', () => ({
@@ -64,7 +66,7 @@ describe('AuthenticationService', () => {
     expect(service).toBeDefined();
   });
 
-  it('registers an active unverified user without changing the selected role', async () => {
+  it('registers public accounts as active unverified job seekers', async () => {
     const sendMail = vi.fn().mockResolvedValue({});
     vi.mocked(nodemailer.createTransport).mockReturnValue({
       sendMail,
@@ -80,16 +82,83 @@ describe('AuthenticationService', () => {
       name: 'Alex Smith',
       email: 'alex@example.com',
       password: 'StrongPass123!',
-      role: 'employer',
     });
 
     expect(userRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        role: 'employer',
+        role: 'job_seeker',
         isEmailVerified: 0,
         isActive: 1,
       }),
     );
+  });
+
+  it('assigns employer role only through the dedicated employer registration flow', async () => {
+    vi.mocked(nodemailer.createTransport).mockReturnValue({
+      sendMail: vi.fn().mockResolvedValue({}),
+      close: vi.fn(),
+    } as never);
+    userRepository.findOne.mockResolvedValue(null);
+    userRepository.save.mockImplementation(async (user) => ({
+      id: 2,
+      ...user,
+    }));
+
+    await service.registerEmployer({
+      name: 'Morgan Employer',
+      email: 'morgan@example.com',
+      password: 'StrongPass123!',
+    });
+
+    expect(userRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'employer' }),
+    );
+  });
+
+  it('rejects role assignment in the public registration DTO', async () => {
+    const dto = Object.assign(new RegisterDto(), {
+      name: 'Taylor Admin',
+      email: 'admin@example.com',
+      password: 'StrongPass123!',
+      role: 'admin',
+    });
+
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          property: 'role',
+          constraints: expect.objectContaining({
+            whitelistValidation: expect.any(String),
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it('verifies OTPs through the explicitly selected expiry field and clears both tokens', async () => {
+    const user = {
+      isEmailVerified: 0,
+      emailVerificationTokenHash: 'stored-hash',
+      emailVerificationTokenExpiresAt: new Date(Date.now() + 60_000),
+    };
+    queryBuilder.getOne.mockResolvedValue(user);
+    userRepository.save.mockImplementation(async (savedUser) => savedUser);
+
+    await expect(service.verifyEmail('123456')).resolves.toEqual({
+      message: 'Email verified successfully. You can now log in.',
+    });
+
+    expect(queryBuilder.addSelect).toHaveBeenCalledWith(
+      'user.emailVerificationTokenExpiresAt',
+    );
+    expect(user.isEmailVerified).toBe(1);
+    expect(user.emailVerificationTokenHash).toBeNull();
+    expect(user.emailVerificationTokenExpiresAt).toBeNull();
   });
 
   describe('login', () => {
@@ -139,6 +208,32 @@ describe('AuthenticationService', () => {
       );
       expect(jwtService.signAsync).not.toHaveBeenCalled();
     });
+
+    it('authenticates administrator accounts using the stored role', async () => {
+      const passwordHash = await bcrypt.hash('StrongPass123!', 4);
+      queryBuilder.getOne.mockResolvedValue({
+        id: 8,
+        name: 'Admin',
+        email: 'admin@example.com',
+        role: 'admin',
+        password: passwordHash,
+        isEmailVerified: 1,
+        isActive: 1,
+      });
+      jwtService.signAsync.mockResolvedValue('admin-token');
+
+      const result = await service.login({
+        email: 'admin@example.com',
+        password: 'StrongPass123!',
+      });
+
+      expect(jwtService.signAsync).toHaveBeenCalledWith({
+        sub: 8,
+        email: 'admin@example.com',
+        role: 'admin',
+      });
+      expect(result.user.role).toBe('admin');
+    });
   });
 
   it('resends a fresh verification code through the configured SMTP server', async () => {
@@ -164,9 +259,9 @@ describe('AuthenticationService', () => {
     });
     expect(userRepository.save).toHaveBeenCalledWith(user);
     expect(user.emailVerificationTokenHash).toMatch(/^[a-f\d]{64}$/);
-    expect(user.emailVerificationTokenExpiresAt.getTime()).toBeGreaterThan(
-      Date.now(),
-    );
+    expect(
+      new Date(String(user.emailVerificationTokenExpiresAt)).getTime(),
+    ).toBeGreaterThan(Date.now());
     expect(nodemailer.createTransport).toHaveBeenCalledWith({
       host: 'smtp.example.com',
       port: 587,
