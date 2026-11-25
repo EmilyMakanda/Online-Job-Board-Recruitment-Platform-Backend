@@ -151,7 +151,6 @@ export class ApplicationsService {
           const application = applications.create({
             job,
             jobSeekerId,
-            coverLetter: dto.coverLetter?.trim() || null,
             status: ApplicationStatus.SUBMITTED,
           });
           const saved = await applications.save(application);

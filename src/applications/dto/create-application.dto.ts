@@ -105,16 +105,6 @@ export class CreateApplicationDto {
   @IsString()
   additionalAnswers?: string;
 
-  @ApiPropertyOptional({
-    description: 'Optional cover letter text (file uploads are handled separately)',
-    example: 'I am interested in this position because...',
-    maxLength: 2000,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  coverLetter?: string;
-    
 @ApiPropertyOptional({
   description: 'Applicant current employment status',
   example: 'Employed',
