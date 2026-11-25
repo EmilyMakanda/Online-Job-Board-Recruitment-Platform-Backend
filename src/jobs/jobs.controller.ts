@@ -9,6 +9,8 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JobService } from './jobs.service.js';
@@ -34,6 +36,13 @@ interface AuthenticatedRequest extends Request {
 
 @ApiTags('Jobs')
 @Controller('job')
+@UsePipes(
+  new ValidationPipe({
+    transform: true,
+    whitelist: true,
+    forbidNonWhitelisted: true,
+  }),
+)
 export class JobController {
   constructor(private readonly jobService: JobService) {}
 
@@ -96,8 +105,15 @@ export class JobController {
   @ApiOperation({
     summary: 'Search available job listings by title, description, or location',
   })
-  searchJobs(@Query('q') query: string, @Query('name') legacyName: string) {
-    return this.jobService.searchJobsByName(query ?? legacyName);
+  searchJobs(
+    @Query('q') query: string,
+    @Query('name') legacyName: string,
+    @Query('location') location: string,
+  ) {
+    return this.jobService.searchJobsByName(
+      query?.trim() || legacyName,
+      location,
+    );
   }
 
   @Get()
@@ -158,12 +174,14 @@ export class JobController {
     return this.jobService.updateJob(jobID, dto, req.user.sub);
   }
 
-  // Delete a job by its ID.
+  // Close the job to preserve its history and any associated applications.
   @Delete(':jobID')
   @ApiBearerAuth()
   @Roles('employer')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @ApiOperation({ summary: 'Delete a specific job listing by its ID' })
+  @ApiOperation({
+    summary: 'Close a job listing and retain its application history',
+  })
   @ApiParam({
     name: 'jobID',
     description: 'The ID of the job listing to delete',
@@ -171,7 +189,7 @@ export class JobController {
   })
   @ApiResponse({
     status: 200,
-    description: 'The job listing has been successfully deleted.',
+    description: 'The job listing is no longer public and remains in history.',
   })
   @ApiResponse({
     status: 401,

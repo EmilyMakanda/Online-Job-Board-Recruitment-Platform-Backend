@@ -6,11 +6,14 @@ import { Application } from './entities/application.entity.js';
 import { ApplicationDocument } from './entities/application-document.entity.js';
 import { JobModule } from '../jobs/jobs.module.js';
 import { User } from '../authentication/entities/user.entity.js';
-import { NotificationsModule} from '../notification/notification.module.js';
-import { UsersModule } from '../users/users.module.js';
+import { NotificationsModule } from '../notification/notification.module.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Application, ApplicationDocument, User]), JobModule, NotificationsModule,],
+  imports: [
+    TypeOrmModule.forFeature([Application, ApplicationDocument, User]),
+    JobModule,
+    NotificationsModule,
+  ],
   controllers: [ApplicationsController],
   providers: [ApplicationsService],
   exports: [ApplicationsService],

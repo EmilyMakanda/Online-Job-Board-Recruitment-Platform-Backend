@@ -1,19 +1,14 @@
-import {ApiProperty} from '@nestjs/swagger';
-import { IsIn } from 'class-validator';
-import { ApplicationStatus } from '../entities/application.entity.js';
-
-const REVIEW_STATUSES = [
-  ApplicationStatus.IN_REVIEW,
-  ApplicationStatus.ACCEPTED,
-  ApplicationStatus.REJECTED,
-] as const;
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateApplicationDto {
-  @ApiProperty({
-    enum: REVIEW_STATUSES,
-    example: ApplicationStatus.IN_REVIEW,
-    description: 'Status selected by the employer reviewing this application',
+  @ApiPropertyOptional({
+    example: 'I would be glad to discuss my experience in more detail.',
+    maxLength: 2000,
   })
-  @IsIn(REVIEW_STATUSES)
-  status:(typeof REVIEW_STATUSES)[number];
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  coverLetter?: string;
 }
