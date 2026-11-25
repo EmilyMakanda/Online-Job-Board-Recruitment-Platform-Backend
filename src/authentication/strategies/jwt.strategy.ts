@@ -5,11 +5,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity.js';
-<<<<<<< HEAD
 import type { UserRole } from '../roles.decorator.js';
-=======
-import { UserRole } from '../roles.decorator.js';
->>>>>>> 4f93cc2 (Updated application module)
 
 interface JwtPayload {
   sub: number;

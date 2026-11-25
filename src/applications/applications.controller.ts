@@ -288,23 +288,4 @@ export class ApplicationsController {
   ) {
     return this.applicationsService.remove(id, req.user.sub);
   }
-
-  @Get('documents/:documentId/download')
-  @Roles('job_seeker', 'employer')
-  @ApiOperation({
-    summary:
-      'Download an application document if you are its applicant or the job owner',
-  })
-  async downloadDocument(
-    @Param('documentId', ParseIntPipe) documentId: number,
-    @Req() req: AuthenticatedRequest,
-    @Res() res: Response,
-  ) {
-    const document = await this.applicationsService.getDocumentForUser(
-      documentId,
-      req.user.sub,
-      req.user.role,
-    );
-    return res.download(document.filePath, document.originalName);
-  }
 }
