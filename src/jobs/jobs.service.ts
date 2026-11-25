@@ -7,7 +7,10 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
-import { CreateJobDto } from './dto/create-job.dto.js';
+import {
+  CreateJobDto,
+  JOB_APPLICATION_FIELD_KEYS,
+} from './dto/create-job.dto.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
 import { Job, JobStatus } from './entities/jobs.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
@@ -72,6 +75,25 @@ export class JobService {
       );
     }
 
+    const applicationRequirements = dto.applicationRequirements ?? [
+      {
+        fieldKey: 'cv',
+        fieldLabel: 'CV / Resume',
+        isEnabled: true,
+        isRequired: true,
+      },
+    ];
+    for (const requirement of applicationRequirements) {
+      if (
+        !JOB_APPLICATION_FIELD_KEYS.includes(requirement.fieldKey) ||
+        (requirement.isRequired && !requirement.isEnabled)
+      ) {
+        throw new BadRequestException(
+          'Application requirements must use supported fields and cannot require a disabled field.',
+        );
+      }
+    }
+
     const job = this.jobRepository.create({
       ...dto,
       title: requiredTrimmedText(dto.title, 'Title'),
@@ -81,6 +103,12 @@ export class JobService {
       status: JobStatus.PENDING,
       postedBy: user,
       company,
+      applicationRequirements: applicationRequirements.map((requirement) => ({
+        fieldKey: requirement.fieldKey,
+        fieldLabel: requiredTrimmedText(requirement.fieldLabel, 'Field label'),
+        isRequired: Number(requirement.isRequired),
+        isEnabled: Number(requirement.isEnabled),
+      })),
     });
     return this.jobRepository.save(job);
   }
@@ -174,9 +202,9 @@ export class JobService {
       where: {
         status: JobStatus.APPROVED,
         deadline: MoreThan(new Date()),
-        company: { verificationStatus: VerificationStatus.VERIFIED},
+        company: { verificationStatus: VerificationStatus.VERIFIED },
       },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
       order: { createdAt: 'DESC' },
     });
   }
@@ -184,7 +212,7 @@ export class JobService {
   getJobsByEmployer(employerId: number) {
     return this.jobRepository.find({
       where: { company: { employerId } },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
       order: { createdAt: 'DESC' },
     });
   }
@@ -205,6 +233,10 @@ export class JobService {
     const query = this.jobRepository
       .createQueryBuilder('job')
       .leftJoinAndSelect('job.company', 'company')
+      .leftJoinAndSelect(
+        'job.applicationRequirements',
+        'applicationRequirements',
+      )
       .where('job.status = :status', { status: JobStatus.APPROVED })
       .andWhere('job.deadline > :now', { now: new Date() })
       .andWhere('company.verificationStatus = :companyStatus', {
@@ -233,9 +265,9 @@ export class JobService {
         id,
         status: JobStatus.APPROVED,
         deadline: MoreThan(new Date()),
-        company: { verificationStatus:VerificationStatus.VERIFIED },
+        company: { verificationStatus: VerificationStatus.VERIFIED },
       },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
     });
 
     if (!job) {
@@ -261,7 +293,7 @@ export class JobService {
   async getOneJobForEmployer(id: string, employerId: number) {
     const job = await this.jobRepository.findOne({
       where: { id, company: { employerId } },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
     });
 
     if (!job) {

@@ -103,6 +103,17 @@ synchronization in production as a substitute. The standalone TypeORM CLI
 reads `DB_*` values from the process environment; export them before invoking
 the migration command if they are otherwise only stored in a local `.env`.
 
+Employers can include an `applicationRequirements` array when creating a job.
+Each item has a supported `fieldKey`, employer-facing `fieldLabel`, and
+`isEnabled`/`isRequired` flags. The default remains a required CV when the
+array is omitted. Job responses expose these settings so the application form
+can render the selected fields; application submissions are checked against
+required fields and selected answers are stored with the application. Before
+deploying with synchronization disabled, run
+`src/database/migrations/20261125100000-JobApplicationRequirements.ts` using
+`npm run migration:run`. The migration also marks CV as required and cover
+letter as optional for existing jobs.
+
 ---
 
 ## 🚨 Troubleshooting Guide ("If Anything Breaks")
