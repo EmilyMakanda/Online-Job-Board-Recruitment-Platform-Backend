@@ -5,7 +5,7 @@ services:
       - "${ORACLE_HOST_PORT:-1521}:1521"
     environment:
       ORACLE_PASSWORD: ${ORACLE_PASSWORD:-YourStrongPassword123!}
-      ORACLE_DATABASE: ${DB_SERVICE_NAME:-job_board_pdb}
+      ORACLE_DATABASE: ${DB_SERVICE_NAME:-XEPDB1}
       APP_USER: ${DB_USERNAME:-job_board_user}
       APP_USER_PASSWORD: ${DB_PASSWORD:-jobpassword}
     volumes:
@@ -27,6 +27,7 @@ services:
     env_file:
       - .env
     environment:
+      PORT: "3002"
       DB_HOST: oracle-db
       DB_PORT: "1521"
       DB_SYNCHRONIZE: ${DB_SYNCHRONIZE:-true}

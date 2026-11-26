@@ -80,6 +80,16 @@ describe('ApplicationsService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    applicationRepository.create.mockImplementation(
+      (application) => application,
+    );
+    applicationRepository.save.mockImplementation((application) =>
+      Promise.resolve(application),
+    );
+    documentRepository.create.mockImplementation((document) => document);
+    documentRepository.save.mockImplementation((documents) =>
+      Promise.resolve(documents),
+    );
     applicationRepository.manager.transaction.mockImplementation((work) =>
       work(manager),
     );
@@ -136,6 +146,10 @@ describe('ApplicationsService', () => {
       path: '/tmp/cv-uuid.pdf',
     } as Express.Multer.File;
     jobService.getOneJob.mockResolvedValue(job);
+    applicationRepository.findOne.mockResolvedValueOnce(null);
+    userRepository.findOne.mockResolvedValue({
+      email: 'candidate@example.com',
+    });
     applicationRepository.findOne
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(application);
@@ -159,7 +173,7 @@ describe('ApplicationsService', () => {
     ).resolves.toMatchObject({
       applicationId: 5,
       status: ApplicationStatus.SUBMITTED,
-      documents: [],
+      documents: [expect.objectContaining({ documentType: ApplicationDocumentType.CV })],
     });
 
     expect(jobService.getOneJob).toHaveBeenCalledWith(job.id);
@@ -177,6 +191,12 @@ describe('ApplicationsService', () => {
         storedName: 'cv-uuid.pdf',
       }),
     );
+    expect(notificationsService.create).toHaveBeenCalledWith({
+      userId: 7,
+      email: 'candidate@example.com',
+      subject: 'Application received',
+      message: 'Your application for "Engineer" was submitted successfully.',
+    });
   });
 
   it('prevents a jobseeker from applying to the same job twice', async () => {
@@ -278,6 +298,9 @@ describe('ApplicationsService', () => {
       documents: [],
     } as Application;
     applicationRepository.findOne.mockResolvedValue(application);
+    userRepository.findOne.mockResolvedValue({
+      email: 'candidate@example.com',
+    });
 
     await service.updateStatus(5, 12, {
       status: ApplicationStatus.SHORTLISTED,
@@ -285,6 +308,13 @@ describe('ApplicationsService', () => {
 
     expect(application.status).toBe(ApplicationStatus.SHORTLISTED);
     expect(applicationRepository.save).toHaveBeenCalledWith(application);
+    expect(notificationsService.create).toHaveBeenCalledWith({
+      userId: 7,
+      email: 'candidate@example.com',
+      subject: 'Congratulations, you have been shortlisted',
+      message:
+        'Congratulations! Your application for "Engineer" has been shortlisted.',
+    });
   });
 
   it('rejects invalid status transitions and updates by a different employer', async () => {
@@ -316,11 +346,20 @@ describe('ApplicationsService', () => {
     } as Application;
     applicationRepository.findOne.mockResolvedValue(application);
     documentRepository.find.mockResolvedValue([]);
+    userRepository.findOne.mockResolvedValue({
+      email: 'candidate@example.com',
+    });
 
     await service.remove(5, 7);
 
     expect(application.status).toBe(ApplicationStatus.WITHDRAWN);
     expect(applicationRepository.save).toHaveBeenCalledWith(application);
     expect(applicationRepository.manager.transaction).toHaveBeenCalledOnce();
+    expect(notificationsService.create).toHaveBeenCalledWith({
+      userId: 7,
+      email: 'candidate@example.com',
+      subject: 'Application withdrawn',
+      message: 'Your application has been withdrawn.',
+    });
   });
 });

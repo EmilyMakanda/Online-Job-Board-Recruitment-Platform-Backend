@@ -182,6 +182,7 @@ export class ApplicationsService {
     await this.notifyUser(
       jobSeekerId,
       `Your application for "${job.title}" was submitted successfully.`,
+      'Application received',
     );
     return this.presentApplication(savedApplication);
   }
@@ -420,9 +421,15 @@ export class ApplicationsService {
         return applications.save(application);
       },
     );
+    const isShortlisted = saved.status === ApplicationStatus.SHORTLISTED;
     await this.notifyUser(
       saved.jobSeekerId,
-      `The status of your application for "${saved.job.title}" is now ${saved.status}.`,
+      isShortlisted
+        ? `Congratulations! Your application for "${saved.job.title}" has been shortlisted.`
+        : `The status of your application for "${saved.job.title}" is now ${saved.status}.`,
+      isShortlisted
+        ? 'Congratulations, you have been shortlisted'
+        : 'Application status update',
     );
 
     return this.findOne(saved.applicationId, saved.jobSeekerId);
@@ -466,6 +473,11 @@ export class ApplicationsService {
       },
     );
     this.removeStoredFiles(documents);
+    await this.notifyUser(
+      jobSeekerId,
+      'Your application has been withdrawn.',
+      'Application withdrawn',
+    );
   }
 
   async getDocumentForUser(
@@ -503,7 +515,11 @@ export class ApplicationsService {
     return document;
   }
 
-  private async notifyUser(userId: number, message: string): Promise<void> {
+  private async notifyUser(
+    userId: number,
+    message: string,
+    subject: string,
+  ): Promise<void> {
     try {
       const user = await this.userRepository.findOne({
         where: { id: userId },
@@ -513,6 +529,7 @@ export class ApplicationsService {
           userId,
           message,
           email: user.email,
+          subject,
         });
       }
     } catch (error) {

@@ -1,15 +1,10 @@
-
-import {
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { Notification } from './notification.entity.js';
 import { CreateNotificationDto } from './create-notification.dto.js';
 import { EmailService } from '../email/email.service.js';
-import { NotFoundException } from '@nestjs/common';
 
 @Injectable()
 export class NotificationsService {
@@ -36,12 +31,11 @@ export class NotificationsService {
 
     // Send email to the supplied recipient.
     try {
-      const emailResult =
-        await this.emailService.sendNotificationEmail(
-          dto.email,
-          'Job Board Notification',
-          dto.message,
-        );
+      const emailResult = await this.emailService.sendNotificationEmail(
+        dto.email,
+        dto.subject ?? 'Job Board Notification',
+        dto.message,
+      );
 
       return {
         notification: savedNotification,
@@ -83,9 +77,7 @@ export class NotificationsService {
     });
 
     if (!notification) {
-      throw new NotFoundException(
-        'Notification not found for this user',
-      );
+      throw new NotFoundException('Notification not found for this user');
     }
 
     notification.isRead = 1;

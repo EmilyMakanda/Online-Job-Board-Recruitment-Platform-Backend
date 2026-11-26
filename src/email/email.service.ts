@@ -1,5 +1,5 @@
-
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
@@ -7,60 +7,95 @@ import type { Transporter } from 'nodemailer';
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  private transporterPromise?: Promise<Transporter>;
+  constructor(private readonly configService: ConfigService) {}
 
-  private async getTransporter(): Promise<Transporter> {
-    if (!this.transporterPromise) {
-      this.transporterPromise = nodemailer
-        .createTestAccount()
-        .then((account) => {
-          this.logger.log('Ethereal test account created');
+  private createTransporter(): Transporter {
+    const user = this.configService.get<string>('SMTP_USER');
+    const password = this.configService.get<string>('SMTP_PASSWORD');
+    const clientId = this.configService.get<string>('SMTP_CLIENT_ID');
+    const clientSecret = this.configService.get<string>('SMTP_CLIENT_SECRET');
+    const refreshToken = this.configService.get<string>('SMTP_REFRESH_TOKEN');
+    const host = this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com');
+    const port = Number(this.configService.get<string>('SMTP_PORT') ?? 465);
+    const secureSetting = this.configService.get<string>('SMTP_SECURE');
+    const secure =
+      secureSetting === undefined
+        ? port === 465
+        : secureSetting.toLowerCase() === 'true';
 
-          return nodemailer.createTransport({
-            host: 'smtp.ethereal.email',
-            port: 587,
-            secure: false,
-            auth: {
-              user: account.user,
-              pass: account.pass,
-            },
-          });
-        });
+    if (!user) {
+      throw new Error(
+        'SMTP configuration is missing. Set SMTP_USER and SMTP_PASSWORD or configure Gmail OAuth.',
+      );
     }
 
-    return this.transporterPromise;
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error('SMTP_PORT must be a valid port number.');
+    }
+
+    const auth = password
+      ? { user, pass: password }
+      : clientId && clientSecret && refreshToken
+        ? {
+            type: 'OAuth2' as const,
+            user,
+            clientId,
+            clientSecret,
+            refreshToken,
+          }
+        : undefined;
+
+    if (!auth) {
+      throw new Error(
+        'SMTP credentials are incomplete. Set SMTP_PASSWORD or SMTP_CLIENT_ID, SMTP_CLIENT_SECRET and SMTP_REFRESH_TOKEN.',
+      );
+    }
+
+    return nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth,
+    });
   }
 
-  async sendNotificationEmail(
-    to: string,
-    subject: string,
-    message: string,
-  ) {
-    const transporter = await this.getTransporter();
+  async sendEmail(to: string, subject: string, text: string, html: string) {
+    const transporter = this.createTransporter();
+    const from =
+      this.configService.get<string>('SMTP_FROM') ??
+      this.configService.get<string>('SMTP_USER');
 
-    const info = await transporter.sendMail({
-      from: '"Job Board Notifications" <notifications@example.com>',
+    try {
+      return await transporter.sendMail({
+        from,
+        to,
+        subject,
+        text,
+        html,
+      });
+    } finally {
+      transporter.close();
+    }
+  }
+
+  async sendNotificationEmail(to: string, subject: string, message: string) {
+    const info = await this.sendEmail(
       to,
       subject,
-      text: message,
-      html: `
+      message,
+      `
         <div style="font-family: Arial, sans-serif;">
-          <h2>Job Board Notification</h2>
+          <h2>${this.escapeHtml(subject)}</h2>
           <p>${this.escapeHtml(message)}</p>
           <p>Thank you for using our Job Board Recruitment Platform.</p>
         </div>
       `,
-    });
-
-    const previewUrl = nodemailer.getTestMessageUrl(info);
+    );
 
     this.logger.log(`Email sent. Message ID: ${info.messageId}`);
-    this.logger.log(`Preview URL: ${previewUrl}`);
 
     return {
-      message: 'Test email sent successfully',
       messageId: info.messageId,
-      previewUrl,
     };
   }
 

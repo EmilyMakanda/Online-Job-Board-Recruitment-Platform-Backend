@@ -9,12 +9,11 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 
 import * as bcrypt from 'bcrypt';
 import { createHash, randomInt } from 'node:crypto';
-import nodemailer from 'nodemailer';
 
+import { EmailService } from '../email/email.service.js';
 import { User } from './entities/user.entity.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
@@ -29,7 +28,7 @@ export class AuthenticationService {
     private readonly userRepository: Repository<User>,
 
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
   ) {}
 
   // Hash the OTP before storing it in Oracle.
@@ -42,77 +41,16 @@ export class AuthenticationService {
     return randomInt(0, 1_000_000).toString().padStart(6, '0');
   }
 
-  // SMTP credentials are preferred; Gmail OAuth 2.0 remains supported.
-  private createEmailTransporter() {
-    const user = this.configService.get<string>('SMTP_USER');
-    const password = this.configService.get<string>('SMTP_PASSWORD');
-    const clientId = this.configService.get<string>('SMTP_CLIENT_ID');
-    const clientSecret = this.configService.get<string>('SMTP_CLIENT_SECRET');
-    const refreshToken = this.configService.get<string>('SMTP_REFRESH_TOKEN');
-    const host = this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com');
-    const port = Number(this.configService.get<string>('SMTP_PORT') ?? 465);
-    const secureSetting = this.configService.get<string>('SMTP_SECURE');
-    const secure =
-      secureSetting === undefined
-        ? port === 465
-        : secureSetting.toLowerCase() === 'true';
-
-    if (!user) {
-      throw new Error(
-        'SMTP configuration is missing. Set SMTP_USER and SMTP_PASSWORD or configure Gmail OAuth.',
-      );
-    }
-
-    if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      throw new Error('SMTP_PORT must be a valid port number.');
-    }
-
-    const auth = password
-      ? { user, pass: password }
-      : clientId && clientSecret && refreshToken
-        ? {
-            type: 'OAuth2' as const,
-            user,
-            clientId,
-            clientSecret,
-            refreshToken,
-          }
-        : undefined;
-
-    if (!auth) {
-      throw new Error(
-        'SMTP credentials are incomplete. Set SMTP_PASSWORD or SMTP_CLIENT_ID, SMTP_CLIENT_SECRET and SMTP_REFRESH_TOKEN.',
-      );
-    }
-
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth,
-    });
-  }
-
   // Send the six-digit OTP to the user's email address.
   private async sendVerificationEmail(
     email: string,
     otp: string,
   ): Promise<boolean> {
-    let transporter: ReturnType<typeof nodemailer.createTransport> | undefined;
-
     try {
-      transporter = this.createEmailTransporter();
-
-      const sender =
-        this.configService.get<string>('SMTP_FROM') ??
-        this.configService.get<string>('SMTP_USER');
-
-      await transporter.sendMail({
-        from: sender,
-        to: email,
-        subject: 'Your Job Board Verification Code',
-
-        text: [
+      await this.emailService.sendEmail(
+        email,
+        'Your Job Board Verification Code',
+        [
           'Welcome to Online Job Board!',
           '',
           `Your six-digit verification code is: ${otp}`,
@@ -120,8 +58,7 @@ export class AuthenticationService {
           'This code expires in 10 minutes.',
           'If you did not create this account, you can ignore this email.',
         ].join('\n'),
-
-        html: `
+        `
           <h2>Welcome to Online Job Board!</h2>
           <p>Thank you for registering.</p>
           <p>Enter this six-digit code to verify your email:</p>
@@ -129,7 +66,7 @@ export class AuthenticationService {
           <p>This code expires in 10 minutes.</p>
           <p>If you did not create this account, ignore this email.</p>
         `,
-      });
+      );
 
       return true;
     } catch (error) {
@@ -137,8 +74,6 @@ export class AuthenticationService {
 
       this.logger.error(`Failed to send verification OTP: ${message}`);
       return false;
-    } finally {
-      transporter?.close();
     }
   }
 

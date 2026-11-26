@@ -80,7 +80,7 @@ Authenticated job seekers and employers can submit a report through
 `GET /api/v1/admin/reports` and resolve or dismiss them with
 `PATCH /api/v1/admin/reports/:id/status`.
 
-The Swagger UI is served at `http://localhost:3000/api/docs` by default (or
+The Swagger UI is served at `http://localhost:3000/api` by default (or
 the configured `PORT`). Use **Authorize** with the access token returned by
 `POST /api/v1/authentication/login`; enter the token value without adding a `Bearer`
 prefix because Swagger supplies the bearer scheme.
