@@ -14,6 +14,8 @@ import { In, Repository } from 'typeorm';
 
 import { User } from '../authentication/entities/user.entity.js';
 import type { UserRole } from '../authentication/roles.decorator.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { paginated, paginationOptions } from '../common/pagination.js';
 import { JobService } from '../jobs/jobs.service.js';
 import { Job, JobStatus } from '../jobs/entities/jobs.entity.js';
 import { NotificationsService } from '../notification/notification.service.js';
@@ -25,11 +27,14 @@ import {
   ApplicationDocument,
   ApplicationDocumentType,
 } from './entities/application-document.entity.js';
+import {
+  APPLICATION_UPLOAD_DIR,
+  removeApplicationFiles,
+} from './application-file-storage.js';
 import { CreateApplicationDto } from './dto/create-application.dto.js';
 import type { UpdateApplicationDto } from './dto/update-application.dto.js';
 import type { UpdateApplicationStatusDto } from './dto/update-application-status.dto.js';
 
-const UPLOAD_DIR = join(process.cwd(), 'uploads', 'applications');
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_SUPPORTING_FILES = 5;
 const APPLICATION_ANSWER_KEYS = [
@@ -110,7 +115,7 @@ export class ApplicationsService {
     private readonly userRepository: Repository<User>,
     private readonly notificationsService: NotificationsService,
   ) {
-    mkdirSync(UPLOAD_DIR, { recursive: true });
+    mkdirSync(APPLICATION_UPLOAD_DIR, { recursive: true });
   }
 
   async create(
@@ -284,7 +289,7 @@ export class ApplicationsService {
       storedName,
       mimeType: file.mimetype,
       fileSize: file.size,
-      filePath: join(UPLOAD_DIR, storedName),
+      filePath: join(APPLICATION_UPLOAD_DIR, storedName),
     });
   }
 
@@ -315,20 +320,7 @@ export class ApplicationsService {
   }
 
   private removeStoredFiles(documents: ApplicationDocument[]): void {
-    for (const document of documents) {
-      const filePath = join(UPLOAD_DIR, basename(document.storedName));
-      if (!existsSync(filePath)) {
-        continue;
-      }
-      try {
-        unlinkSync(filePath);
-      } catch (error) {
-        this.logger.error(
-          `Could not remove application document ${document.documentId}.`,
-          error instanceof Error ? error.stack : undefined,
-        );
-      }
-    }
+    removeApplicationFiles(documents.map(({ storedName }) => storedName));
   }
 
   private async findApplication(
@@ -368,25 +360,36 @@ export class ApplicationsService {
     );
   }
 
-  async findByJobSeeker(jobSeekerId: number) {
-    const applications = await this.applicationRepository.find({
+  async findByJobSeeker(
+    jobSeekerId: number,
+    pagination = new PaginationQueryDto(),
+  ) {
+    const [applications, total] =
+      await this.applicationRepository.findAndCount({
       where: { jobSeekerId },
       relations: { job: true, documents: true },
       order: { appliedAt: 'DESC' },
+      ...paginationOptions(pagination),
     });
-    return applications.map((application) =>
+    const items = applications.map((application) =>
       this.presentApplication(application),
     );
+    return paginated([items, total], pagination);
   }
 
-  async findByEmployer(employerId: number) {
-    const applications = await this.applicationRepository.find({
+  async findByEmployer(
+    employerId: number,
+    pagination = new PaginationQueryDto(),
+  ) {
+    const [applications, total] =
+      await this.applicationRepository.findAndCount({
       where: { job: { postedBy: { id: employerId } } },
       relations: { job: true, documents: true },
       order: { appliedAt: 'DESC' },
+      ...paginationOptions(pagination),
     });
     if (applications.length === 0) {
-      return [];
+      return paginated([[], total], pagination);
     }
 
     const applicants = await this.userRepository.find({
@@ -404,10 +407,11 @@ export class ApplicationsService {
       applicants.map((applicant) => [applicant.id, applicant]),
     );
 
-    return applications.map((application) => ({
+    const items = applications.map((application) => ({
       ...this.presentApplication(application),
       applicant: applicantsById.get(application.jobSeekerId) ?? null,
     }));
+    return paginated([items, total], pagination);
   }
 
   async update(
@@ -574,7 +578,10 @@ export class ApplicationsService {
       throw new ForbiddenException('You do not have access to this document.');
     }
 
-    const filePath = join(UPLOAD_DIR, basename(document.storedName));
+    const filePath = join(
+      APPLICATION_UPLOAD_DIR,
+      basename(document.storedName),
+    );
     if (!existsSync(filePath)) {
       throw new NotFoundException('The application document is unavailable.');
     }

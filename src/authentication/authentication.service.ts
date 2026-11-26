@@ -11,7 +11,7 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 
 import * as bcrypt from 'bcrypt';
-import { createHash, randomInt } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 
 import { EmailService } from '../email/email.service.js';
 import { User } from './entities/user.entity.js';
@@ -105,6 +105,11 @@ export class AuthenticationService {
     if (password.length < 8) {
       throw new BadRequestException(
         'Password must contain at least 8 characters.',
+      );
+    }
+    if (Buffer.byteLength(password, 'utf8') > 72) {
+      throw new BadRequestException(
+        'Password must not exceed 72 UTF-8 bytes.',
       );
     }
 
@@ -229,6 +234,109 @@ export class AuthenticationService {
     };
   }
 
+  async requestPasswordReset(emailInput: string) {
+    const email = emailInput?.trim().toLowerCase();
+    if (!email) {
+      throw new BadRequestException('Email is required.');
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { email, isActive: 1 },
+      select: { id: true, email: true, isActive: true },
+    });
+
+    if (user) {
+      const token = randomBytes(32).toString('hex');
+      user.passwordResetTokenHash = this.hashToken(token);
+      user.passwordResetTokenExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      await this.userRepository.save(user);
+
+      try {
+        await this.emailService.sendEmail(
+          user.email,
+          'Reset your Job Board password',
+          `Use this one-time password reset token within one hour:\n\n${token}`,
+          `<p>Use this one-time password reset token within one hour:</p><p><code>${token}</code></p>`,
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.error(`Failed to send password reset email: ${message}`);
+      }
+    }
+
+    return {
+      message:
+        'If an active account exists for that email, password reset instructions will be sent.',
+    };
+  }
+
+  async resetPassword(token: string, password: string) {
+    if (Buffer.byteLength(password, 'utf8') > 72) {
+      throw new BadRequestException(
+        'Password must not exceed 72 UTF-8 bytes.',
+      );
+    }
+
+    return this.userRepository.manager.transaction(async (manager) => {
+      const users = manager.getRepository(User);
+      const user = await users
+        .createQueryBuilder('user')
+        .addSelect('user.passwordResetTokenHash')
+        .addSelect('user.passwordResetTokenExpiresAt')
+        .where('user.passwordResetTokenHash = :tokenHash', {
+          tokenHash: this.hashToken(token),
+        })
+        .andWhere('user.passwordResetTokenExpiresAt > :now', {
+          now: new Date(),
+        })
+        .setLock('pessimistic_write')
+        .getOne();
+
+      if (!user) {
+        throw new BadRequestException(
+          'The password reset token is invalid or expired.',
+        );
+      }
+
+      user.password = await bcrypt.hash(password, 12);
+      user.passwordResetTokenHash = null;
+      user.passwordResetTokenExpiresAt = null;
+      user.tokenVersion += 1;
+      await users.save(user);
+
+      return { message: 'Password reset successfully. Please log in again.' };
+    });
+  }
+
+  async changePassword(userId: number, currentPassword: string, newPassword: string) {
+    if (Buffer.byteLength(newPassword, 'utf8') > 72) {
+      throw new BadRequestException(
+        'Password must not exceed 72 UTF-8 bytes.',
+      );
+    }
+
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.id = :userId', { userId })
+      .getOne();
+
+    if (!user) {
+      throw new UnauthorizedException('Account no longer exists.');
+    }
+    if (!(await bcrypt.compare(currentPassword, user.password))) {
+      throw new UnauthorizedException('Current password is incorrect.');
+    }
+
+    user.password = await bcrypt.hash(newPassword, 12);
+    user.passwordResetTokenHash = null;
+    user.passwordResetTokenExpiresAt = null;
+    user.tokenVersion += 1;
+    await this.userRepository.save(user);
+
+    return { message: 'Password changed. Please log in again.' };
+  }
+
   // Log in only after the email has been verified.
   async login(dto: LoginDto) {
     const email = dto.email?.trim().toLowerCase();
@@ -236,6 +344,9 @@ export class AuthenticationService {
 
     if (!email || !password) {
       throw new BadRequestException('Email and password are required.');
+    }
+    if (Buffer.byteLength(password, 'utf8') > 72) {
+      throw new UnauthorizedException('Invalid email or password.');
     }
 
     // Explicitly select the password because the entity excludes it by default.
@@ -271,6 +382,7 @@ export class AuthenticationService {
       sub: user.id,
       email: user.email,
       role: user.role,
+      tokenVersion: user.tokenVersion,
     });
 
     return {
@@ -283,6 +395,21 @@ export class AuthenticationService {
         role: user.role,
         isEmailVerified: true,
       },
+    };
+  }
+
+  async logout(userId: number) {
+    const result = await this.userRepository.increment(
+      { id: userId },
+      'tokenVersion',
+      1,
+    );
+    if (!result.affected) {
+      throw new UnauthorizedException('Account no longer exists.');
+    }
+
+    return {
+      message: 'Logout successful. All active access tokens were revoked.',
     };
   }
 }

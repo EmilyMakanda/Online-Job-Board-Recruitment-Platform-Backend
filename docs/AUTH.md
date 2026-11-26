@@ -45,26 +45,28 @@ Authorization: Bearer <access_token>
 ```
 
 Tokens are signed with `JWT_SECRET` and expire after one day. Each protected
-request also reloads the account from Oracle, so deleted or deactivated users
-cannot continue using an existing token. Job-seeker registration is available
+request reloads the account from Oracle and checks its token version, so deleted,
+deactivated, logged-out, or password-changed accounts cannot continue using
+older tokens. Job-seeker registration is available
 at `POST /api/v1/authentication/register`; employer registration is available at
 `POST /api/v1/authentication/register/employer`. The backend assigns these roles
 without accepting a role from the request. Employers create and manage their
 company separately through `/api/v1/companies`. Email verification and login remain
 public so users can obtain an access token.
 
-Job postings are created in a pending state. Only administrators can approve
-them, after which they become visible to job seekers. Employers can access only
-their own postings and their job applications.
+Employers may publish jobs immediately after their company has been verified by
+an administrator; a separate per-job approval is not required. Jobs from
+unverified companies cannot be created. Employers can access only their own
+postings and their job applications.
 
 All `/api/v1/admin` endpoints require a JWT whose current database role is `admin`.
 Administrators can manage accounts, employers/companies, job moderation,
 applications, reports, and statistics. The endpoints
 `PATCH /api/v1/admin/users/:id/activate` and `PATCH /api/v1/admin/users/:id/deactivate`
 manage account activity; an administrator cannot deactivate their own account.
-Admin collection endpoints and `GET /api/v1/users` accept `page` (default `1`) and
-`limit` (default `50`, maximum `100`) query parameters; results remain arrays
-and are ordered newest first.
+Paginated collection endpoints accept `page` (default `1`) and `limit` (default
+`50`, maximum `100`) query parameters and return `{ items, total, page, limit,
+totalPages }`; results are ordered newest first.
 Public registration and profile updates never assign roles. Bootstrap the
 first administrator with the one-time `npm run seed:admin` command after
 building the project. Set `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD` only in
@@ -77,14 +79,21 @@ starts.
 
 Authenticated job seekers and employers can submit a report through
 `POST /api/v1/reports`. Administrators review reports through
-`GET /api/v1/admin/reports` and resolve or dismiss them with
-`PATCH /api/v1/admin/reports/:id/status`.
+`GET /api/v1/reports` and resolve or dismiss them with
+`PATCH /api/v1/reports/:id`. Admin report listing supports the
+same pagination parameters and an optional status filter.
+
+Users can request a password-reset email with
+`POST /api/v1/authentication/password/forgot` and use its one-time token with
+`POST /api/v1/authentication/password/reset`. Authenticated users change a
+password with `PATCH /api/v1/authentication/password`, supplying their current
+password and the new password. Reset requests return the same response whether
+or not the email belongs to an account.
 
 The Swagger UI is served at `http://localhost:3000/api` by default (or
 the configured `PORT`). Use **Authorize** with the access token returned by
 `POST /api/v1/authentication/login`; enter the token value without adding a `Bearer`
 prefix because Swagger supplies the bearer scheme.
 
-`POST /api/v1/authentication/logout` requires a bearer token. Access tokens are
-stateless and are not revoked by this endpoint, so the client must discard its
-token after a successful logout. The token remains usable until it expires.
+`POST /api/v1/authentication/logout` requires a bearer token and revokes tokens
+issued before logout. The client should also discard its local token.

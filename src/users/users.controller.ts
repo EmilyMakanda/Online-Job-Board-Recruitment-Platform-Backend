@@ -90,7 +90,15 @@ export class UsersController {
     status: 200,
     description:
       'Paginated user records, excluding password hashes (default page 1, limit 50; maximum limit 100).',
-    schema: { example: [USER_EXAMPLE] },
+    schema: {
+      example: {
+        items: [USER_EXAMPLE],
+        total: 1,
+        page: 1,
+        limit: 50,
+        totalPages: 1,
+      },
+    },
   })
   @ApiResponse({
     status: 401,

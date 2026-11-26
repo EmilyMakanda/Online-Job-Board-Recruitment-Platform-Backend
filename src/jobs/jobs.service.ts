@@ -8,6 +8,8 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { paginated, paginationOptions } from '../common/pagination.js';
 import {
   CreateJobDto,
   JOB_APPLICATION_FIELD_KEYS,
@@ -218,8 +220,8 @@ export class JobService {
   }
 
   // Returns available jobs from verified companies.
-  getAllJobs() {
-    return this.jobRepository.find({
+  async getAllJobs(pagination: PaginationQueryDto) {
+    const result = await this.jobRepository.findAndCount({
       where: {
         status: JobStatus.APPROVED,
         deadline: MoreThan(new Date()),
@@ -227,18 +229,29 @@ export class JobService {
       },
       relations: { company: true, applicationRequirements: true },
       order: { createdAt: 'DESC' },
+      ...paginationOptions(pagination),
     });
+    return paginated(result, pagination);
   }
 
-  getJobsByEmployer(employerId: number) {
-    return this.jobRepository.find({
+  async getJobsByEmployer(
+    employerId: number,
+    pagination: PaginationQueryDto,
+  ) {
+    const result = await this.jobRepository.findAndCount({
       where: { company: { employerId } },
       relations: { company: true, applicationRequirements: true },
       order: { createdAt: 'DESC' },
+      ...paginationOptions(pagination),
     });
+    return paginated(result, pagination);
   }
 
-  searchJobsByName(name: string, location?: string) {
+  async searchJobsByName(
+    name: string,
+    location?: string,
+    pagination = new PaginationQueryDto(),
+  ) {
     const normalizedName = name?.trim();
     const normalizedLocation = location?.trim();
 
@@ -279,7 +292,12 @@ export class JobService {
       });
     }
 
-    return query.orderBy('job.createdAt', 'DESC').getMany();
+    const result = await query
+      .orderBy('job.createdAt', 'DESC')
+      .skip((pagination.page - 1) * pagination.limit)
+      .take(pagination.limit)
+      .getManyAndCount();
+    return paginated(result, pagination);
   }
 
   // Job seekers can only retrieve available listings.

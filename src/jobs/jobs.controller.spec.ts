@@ -1,19 +1,14 @@
+import 'reflect-metadata';
 import { ROLES_KEY } from '../authentication/roles.decorator.js';
 import { JobController } from './jobs.controller.js';
 
-describe('JobController administrator review access', () => {
-  it('restricts pending-review and review decisions to administrators', () => {
+describe('JobController job creation access', () => {
+  it('restricts job creation to verified-role employers', () => {
     expect(
       Reflect.getMetadata(
         ROLES_KEY,
-        JobController.prototype.getPendingJobsForReview,
+        JobController.prototype.createJob,
       ),
-    ).toEqual(['admin']);
-    expect(
-      Reflect.getMetadata(ROLES_KEY, JobController.prototype.approveJob),
-    ).toEqual(['admin']);
-    expect(
-      Reflect.getMetadata(ROLES_KEY, JobController.prototype.rejectJob),
-    ).toEqual(['admin']);
+    ).toEqual(['employer']);
   });
 });

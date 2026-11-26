@@ -8,6 +8,7 @@ import {
   Patch,
   Delete,
   ParseUUIDPipe,
+  Query,
   UseGuards,
   Req,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import { UpdateCompanyDto } from './dto/update-company.dto.js';
 import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../authentication/guards/roles.guards.js';
 import { Roles, UserRole } from '../authentication/roles.decorator.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -46,15 +48,15 @@ export class CompanyController {
   }
 
   @Get()
-  findAll() {
-    return this.companyService.findAll();
+  findAll(@Query() pagination: PaginationQueryDto) {
+    return this.companyService.findAll(pagination);
   }
 
   // Keep this before @Get(':id') to avoid route matching conflicts.
   @Get('pending')
   @Roles('admin')
-  findPendingCompanies() {
-    return this.companyService.findPendingCompanies();
+  findPendingCompanies(@Query() pagination: PaginationQueryDto) {
+    return this.companyService.findPendingCompanies(pagination);
   }
 
   @Get(':id')

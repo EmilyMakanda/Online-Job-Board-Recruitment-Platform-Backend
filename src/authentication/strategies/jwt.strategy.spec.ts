@@ -36,6 +36,7 @@ describe('JwtStrategy', () => {
       email: 'current@example.com',
       role: 'employer',
       isActive: 1,
+      tokenVersion: 0,
     });
 
     await expect(
@@ -48,10 +49,17 @@ describe('JwtStrategy', () => {
       sub: 7,
       email: 'current@example.com',
       role: 'employer',
+      tokenVersion: 0,
     });
     expect(userRepository.findOne).toHaveBeenCalledWith({
       where: { id: 7 },
-      select: { id: true, email: true, role: true, isActive: true },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        isActive: true,
+        tokenVersion: true,
+      },
     });
   });
 

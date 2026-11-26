@@ -11,6 +11,7 @@ interface JwtPayload {
   sub: number;
   email: string;
   role: UserRole;
+  tokenVersion?: number;
 }
 
 @Injectable()
@@ -35,10 +36,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         email: true,
         role: true,
         isActive: true,
+        tokenVersion: true,
       },
     });
 
-    if (!user || user.isActive !== 1) {
+    if (
+      !user ||
+      user.isActive !== 1 ||
+      (payload.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)
+    ) {
       throw new UnauthorizedException('Account is inactive or does not exist');
     }
 
@@ -46,6 +52,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       sub: user.id,
       email: user.email,
       role: user.role,
+      tokenVersion: user.tokenVersion ?? 0,
     };
   }
 }

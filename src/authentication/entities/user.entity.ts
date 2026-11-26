@@ -70,6 +70,26 @@ export class User {
   emailVerificationTokenExpiresAt: Date | null;
 
   @Column({
+    name: 'PASSWORD_RESET_TOKEN_HASH',
+    type: 'varchar2',
+    length: 64,
+    nullable: true,
+    select: false,
+  })
+  passwordResetTokenHash: string | null;
+
+  @Column({
+    name: 'PASSWORD_RESET_TOKEN_EXPIRES_AT',
+    type: 'timestamp',
+    nullable: true,
+    select: false,
+  })
+  passwordResetTokenExpiresAt: Date | null;
+
+  @Column({ name: 'TOKEN_VERSION', type: 'number', default: 0 })
+  tokenVersion: number;
+
+  @Column({
     name: 'IS_ACTIVE',
     type: 'number',
     default: 1,

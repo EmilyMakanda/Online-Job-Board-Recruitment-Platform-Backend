@@ -37,12 +37,12 @@ Create a `.env` file in the root directory (`job-board-backend/.env`) if it does
 PORT=3000
 
 # Oracle 21c Database Settings
-PORT=3000
 DB_HOST=localhost
 DB_PORT=1521
 DB_USERNAME=job_board_user
 DB_PASSWORD=JobBoardPassword123!
 DB_SERVICE_NAME=job_board_pdb
+# Set true only for disposable local development databases.
 DB_SYNCHRONIZE=true
 JWT_SECRET=your_jwt_secret_key_here
 ```
@@ -77,37 +77,23 @@ Wait until you see `DATABASE IS READY TO USE!` in the logs, then press `Ctrl + C
 npm run start:dev
 ```
 
-When started, TypeORM will connect to Oracle 21c and automatically sync entities, creating or updating database tables as needed.
-The application does not currently configure TypeORM migrations. When using a
-database with `DB_SYNCHRONIZE` disabled, apply this schema change through your
-normal Oracle change process before deploying the account-status code:
+When started, TypeORM connects to Oracle 21c. Schema synchronization is disabled
+unless `DB_SYNCHRONIZE=true`; use synchronization only with a disposable local
+database, never production. Migrations are not automatically run at startup.
+Before deploying with synchronization disabled, set the `DB_*` values in the
+process environment and run:
 
-```sql
-ALTER TABLE users
-ADD is_active NUMBER(1) DEFAULT 1 NOT NULL;
+```bash
+npm run migration:run
 ```
 
-For the disposable local database where synchronization is enabled, TypeORM
-uses the `User` entity definition to add the column. Do not enable
-`DB_SYNCHRONIZE` on production databases just to apply this change.
+This applies pending migrations, including job application requirements,
+reports, and account-security fields. The TypeORM CLI reads environment values
+from the process environment; export them before the migration command if they
+are stored only in `.env`.
 
-Admin moderation adds no job columns; existing `JOBS.STATUS` values fit the
-
-New employer job listings remain `PENDING` until reviewed by an administrator.
-Admins can retrieve the queue with `GET /job/admin/pending`, then approve or
-reject an individual pending job with `PATCH /job/:jobID/approve` or
-`PATCH /job/:jobID/reject`. Approval requires a verified company and an
-unexpired job deadline; expired pending jobs are closed instead.STATUS` values fit the
-existing `VARCHAR2` column. Before deploying with synchronization disabled,
-apply the Oracle-compatible TypeORM migration in
-`src/database/migrations/20261116100000-AdminModerationAndReports.ts` with
-`npm run migration:run` after setting the existing `DB_*` environment values.
-It changes existing `OPEN` jobs to `APPROVED` so their visibility is preserved
-and creates the `REPORTS` table and status index. This project does not
-automatically execute migrations at startup; do not enable schema
-synchronization in production as a substitute. The standalone TypeORM CLI
-reads `DB_*` values from the process environment; export them before invoking
-the migration command if they are otherwise only stored in a local `.env`.
+An employer may publish a job immediately once their company has been verified
+by an administrator. No separate per-job admin approval is required.
 
 Employers can include an `applicationRequirements` array when creating a job.
 Each item has a supported `fieldKey`, employer-facing `fieldLabel`, and

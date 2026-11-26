@@ -8,7 +8,10 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { User } from '../authentication/entities/user.entity.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { Company } from '../company/entities/company.entity.js';
+import { Application } from '../applications/entities/application.entity.js';
 import { UsersService } from './users.service.js';
+import { DataSource } from 'typeorm';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -18,18 +21,61 @@ describe('UsersService', () => {
     findOneBy: vi.fn(),
     findOneByOrFail: vi.fn(),
     find: vi.fn(),
+    findAndCount: vi.fn(),
     create: vi.fn(),
     save: vi.fn(),
     remove: vi.fn(),
   };
+  const companyRepo = {
+    findOneBy: vi.fn(),
+    delete: vi.fn(),
+  };
+  const applicationRepo = { delete: vi.fn() };
+  let documentQueryBuilder: {
+    innerJoin: ReturnType<typeof vi.fn>;
+    leftJoin: ReturnType<typeof vi.fn>;
+    where: ReturnType<typeof vi.fn>;
+    orWhere: ReturnType<typeof vi.fn>;
+    select: ReturnType<typeof vi.fn>;
+    getMany: ReturnType<typeof vi.fn>;
+  };
+  const documentRepo = {
+    createQueryBuilder: vi.fn(),
+  };
+  const transactionManager = {
+    getRepository: vi.fn((entity) => {
+      if (entity === User) return userRepo;
+      if (entity === Application) return applicationRepo;
+      if (entity === Company) return companyRepo;
+      return documentRepo;
+    }),
+  };
+  const dataSource = {
+    getRepository: vi.fn(() => documentRepo),
+    transaction: vi.fn((work) => work(transactionManager)),
+  };
 
   beforeEach(async () => {
     vi.clearAllMocks();
-
+    documentQueryBuilder = {
+      innerJoin: vi.fn(),
+      leftJoin: vi.fn(),
+      where: vi.fn(),
+      orWhere: vi.fn(),
+      select: vi.fn(),
+      getMany: vi.fn().mockResolvedValue([]),
+    };
+    documentQueryBuilder.innerJoin.mockReturnValue(documentQueryBuilder);
+    documentQueryBuilder.leftJoin.mockReturnValue(documentQueryBuilder);
+    documentQueryBuilder.where.mockReturnValue(documentQueryBuilder);
+    documentQueryBuilder.orWhere.mockReturnValue(documentQueryBuilder);
+    documentQueryBuilder.select.mockReturnValue(documentQueryBuilder);
+    documentRepo.createQueryBuilder.mockReturnValue(documentQueryBuilder);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: getRepositoryToken(User), useValue: userRepo },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
 
@@ -72,14 +118,20 @@ describe('UsersService', () => {
 
   describe('findAllUsers', () => {
     it('returns only the requested page of users', async () => {
-      userRepo.find.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+      userRepo.findAndCount.mockResolvedValue([[{ id: 1 }, { id: 2 }], 12]);
       const pagination = Object.assign(new PaginationQueryDto(), {
         page: 2,
         limit: 10,
       });
 
-      await expect(service.findAllUsers(pagination)).resolves.toHaveLength(2);
-      expect(userRepo.find).toHaveBeenCalledWith(
+      await expect(service.findAllUsers(pagination)).resolves.toMatchObject({
+        items: [{ id: 1 }, { id: 2 }],
+        total: 12,
+        page: 2,
+        limit: 10,
+        totalPages: 2,
+      });
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({ skip: 10, take: 10 }),
       );
     });
@@ -127,9 +179,12 @@ describe('UsersService', () => {
     it('removes an existing user', async () => {
       const user = { id: 1 };
       userRepo.findOne.mockResolvedValue(user);
+      companyRepo.findOneBy.mockResolvedValue(null);
 
       await service.removeUser(1);
 
+      expect(dataSource.transaction).toHaveBeenCalledOnce();
+      expect(applicationRepo.delete).toHaveBeenCalledWith({ jobSeekerId: 1 });
       expect(userRepo.remove).toHaveBeenCalledWith(user);
     });
   });

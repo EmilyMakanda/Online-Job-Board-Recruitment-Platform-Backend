@@ -27,6 +27,7 @@ import {
 import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../authentication/guards/roles.guards.js';
 import { Roles } from '../authentication/roles.decorator.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -95,8 +96,11 @@ export class JobController {
   @Roles('employer')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({ summary: 'List jobs posted by the authenticated employer' })
-  getMyJobs(@Req() req: AuthenticatedRequest) {
-    return this.jobService.getJobsByEmployer(req.user.sub);
+  getMyJobs(
+    @Req() req: AuthenticatedRequest,
+    @Query() pagination: PaginationQueryDto,
+  ) {
+    return this.jobService.getJobsByEmployer(req.user.sub, pagination);
   }
 
   @Get('search')
@@ -110,10 +114,12 @@ export class JobController {
     @Query('q') query: string,
     @Query('name') legacyName: string,
     @Query('location') location: string,
+    @Query() pagination: PaginationQueryDto,
   ) {
     return this.jobService.searchJobsByName(
       query?.trim() || legacyName,
       location,
+      pagination,
     );
   }
 
@@ -126,8 +132,8 @@ export class JobController {
     status: 200,
     description: 'A list of available job listings.',
   })
-  getAllJobs() {
-    return this.jobService.getAllJobs();
+  getAllJobs(@Query() pagination: PaginationQueryDto) {
+    return this.jobService.getAllJobs(pagination);
   }
 
   @Get(':jobID')
