@@ -11,7 +11,12 @@ import { NotificationsModule } from '../notification/notification.module.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Application, ApplicationDocument, User]),
+    TypeOrmModule.forFeature([
+      Application,
+      ApplicationDocument,
+      JobApplicationRequirement,
+      User,
+    ]),
     JobModule,
     NotificationsModule,
   ],

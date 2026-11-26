@@ -1,6 +1,53 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import {
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
+  IsDate,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+
+export const JOB_APPLICATION_FIELD_KEYS = [
+  'cv',
+  'coverLetter',
+  'highestEducation',
+  'fieldOfStudy',
+  'yearsOfExperience',
+  'currentEmploymentStatus',
+  'expectedSalary',
+  'noticePeriod',
+  'availableStartDate',
+  'willingToRelocate',
+  'portfolioUrl',
+  'linkedinUrl',
+  'additionalAnswers',
+] as const;
+
+export class JobApplicationFieldDto {
+  @ApiProperty({ enum: JOB_APPLICATION_FIELD_KEYS, example: 'cv' })
+  @IsString()
+  @IsIn(JOB_APPLICATION_FIELD_KEYS)
+  fieldKey: (typeof JOB_APPLICATION_FIELD_KEYS)[number];
+
+  @ApiProperty({ example: 'CV / Resume', maxLength: 100 })
+  @IsString()
+  @MaxLength(100)
+  fieldLabel: string;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  isRequired: boolean;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  isEnabled: boolean;
+}
 
 export class CreateJobDto {
   @ApiProperty({
@@ -15,8 +62,7 @@ export class CreateJobDto {
 
   @ApiProperty({
     description: 'The description of the job listing',
-    example:
-      'We are looking for a skilled software engineer to join our team.',
+    example: 'We are looking for a skilled software engineer to join our team.',
     maxLength: 2000,
   })
   @IsString()
@@ -45,4 +91,17 @@ export class CreateJobDto {
   @Type(() => Date)
   @IsDate()
   deadline: Date;
+
+  @ApiProperty({
+    description:
+      'Application fields to display and require for this job. If omitted, CV is required for compatibility.',
+    type: [JobApplicationFieldDto],
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique((field: JobApplicationFieldDto) => field.fieldKey)
+  @ValidateNested({ each: true })
+  @Type(() => JobApplicationFieldDto)
+  applicationRequirements?: JobApplicationFieldDto[];
 }

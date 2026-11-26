@@ -1,6 +1,7 @@
 import { DataSource } from 'typeorm';
 import { AdminModerationAndReports20261116100000 } from './migrations/20261116100000-AdminModerationAndReports.js';
 import { ApplicationDocumentsAndLifecycle20261118100000 } from './migrations/20261118100000-ApplicationDocumentsAndLifecycle.js';
+import { JobApplicationRequirements20261125100000 } from './migrations/20261125100000-JobApplicationRequirements.js';
 
 function requiredEnvironmentValue(name: string): string {
   const value = process.env[name];
@@ -26,6 +27,7 @@ export default new DataSource({
   migrations: [
     AdminModerationAndReports20261116100000,
     ApplicationDocumentsAndLifecycle20261118100000,
+    JobApplicationRequirements20261125100000,
   ],
   migrationsRun: false,
   synchronize: false,

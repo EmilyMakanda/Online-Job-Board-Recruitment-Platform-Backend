@@ -12,6 +12,7 @@ import {
 } from 'typeorm';
 import { User } from '../../authentication/entities/user.entity.js';
 import { Application } from '../../applications/entities/application.entity.js';
+import { JobApplicationRequirement } from '../../applications/entities/job-application-requirements.entity.js';
 import { Company } from '../../company/entities/company.entity.js';
 
 export enum JobStatus {
@@ -21,6 +22,7 @@ export enum JobStatus {
   REJECTED = 'REJECTED',
   CLOSED = 'CLOSED',
   REMOVED = 'REMOVED',
+  OPEN = 'OPEN',
 }
 
 @Entity('jobs')
@@ -44,7 +46,6 @@ export class Job {
   @Column({ type: 'varchar2', length: 20, default: JobStatus.PENDING })
   status: JobStatus;
 
-<<<<<<< HEAD
   @ManyToOne(() => User, (user) => user.jobs, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'posted_by_user_id' })
   postedBy: Relation<User>;
@@ -52,22 +53,16 @@ export class Job {
   @ManyToOne(() => Company, { nullable: false })
   @JoinColumn({ name: 'company_id', referencedColumnName: 'companyId' })
   company: Relation<Company>;
-=======
-    
-    @ManyToOne(()=>User, (user) => user.jobs, {onDelete: 'CASCADE'})
-    @JoinColumn({ name: 'posted_by_user_id' })
-    postedBy: Relation<User>;
-
-    @ManyToOne(() => Company, {
-  nullable: false,
-  onDelete: 'CASCADE',
-})
-@JoinColumn({ name: 'COMPANY_ID' })
-company: Relation<Company>;
->>>>>>> 4f93cc2 (Updated application module)
 
   @OneToMany(() => Application, (application) => application.job)
   applications: Relation<Application[]>;
+
+  @OneToMany(
+    () => JobApplicationRequirement,
+    (requirement) => requirement.job,
+    { cascade: ['insert', 'update'] },
+  )
+  applicationRequirements: Relation<JobApplicationRequirement[]>;
 
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;

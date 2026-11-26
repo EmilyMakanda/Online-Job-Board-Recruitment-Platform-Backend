@@ -7,7 +7,10 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
-import { CreateJobDto } from './dto/create-job.dto.js';
+import {
+  CreateJobDto,
+  JOB_APPLICATION_FIELD_KEYS,
+} from './dto/create-job.dto.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
 import { Job, JobStatus } from './entities/jobs.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
@@ -72,6 +75,25 @@ export class JobService {
       );
     }
 
+    const applicationRequirements = dto.applicationRequirements ?? [
+      {
+        fieldKey: 'cv',
+        fieldLabel: 'CV / Resume',
+        isEnabled: true,
+        isRequired: true,
+      },
+    ];
+    for (const requirement of applicationRequirements) {
+      if (
+        !JOB_APPLICATION_FIELD_KEYS.includes(requirement.fieldKey) ||
+        (requirement.isRequired && !requirement.isEnabled)
+      ) {
+        throw new BadRequestException(
+          'Application requirements must use supported fields and cannot require a disabled field.',
+        );
+      }
+    }
+
     const job = this.jobRepository.create({
       ...dto,
       title: requiredTrimmedText(dto.title, 'Title'),
@@ -81,6 +103,12 @@ export class JobService {
       status: JobStatus.PENDING,
       postedBy: user,
       company,
+      applicationRequirements: applicationRequirements.map((requirement) => ({
+        fieldKey: requirement.fieldKey,
+        fieldLabel: requiredTrimmedText(requirement.fieldLabel, 'Field label'),
+        isRequired: Number(requirement.isRequired),
+        isEnabled: Number(requirement.isEnabled),
+      })),
     });
     return this.jobRepository.save(job);
   }
@@ -168,15 +196,91 @@ export class JobService {
     return this.saveClosedJob(job);
   }
 
+  getPendingJobsForReview() {
+    return this.jobRepository.find({
+      where: { status: JobStatus.PENDING },
+      relations: {
+        company: true,
+        postedBy: true,
+        applicationRequirements: true,
+      },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  approveJob(jobId: string) {
+    return this.reviewJob(jobId, JobStatus.APPROVED);
+  }
+
+  rejectJob(jobId: string) {
+    return this.reviewJob(jobId, JobStatus.REJECTED);
+  }
+
+  private async reviewJob(jobId: string, decision: JobStatus) {
+    const result = await this.jobRepository.manager.transaction(
+      async (manager) => {
+        const jobs = manager.getRepository(Job);
+        const lockedJob = await jobs.findOne({
+          where: { id: jobId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!lockedJob) {
+          throw new NotFoundException(
+            `Job listing with ID "${jobId}" not found`,
+          );
+        }
+        if (lockedJob.status !== JobStatus.PENDING) {
+          throw new BadRequestException('Only pending jobs can be reviewed.');
+        }
+
+        const job = await jobs.findOne({
+          where: { id: jobId },
+          relations: {
+            company: true,
+            postedBy: true,
+            applicationRequirements: true,
+          },
+        });
+        if (!job) {
+          throw new NotFoundException(
+            `Job listing with ID "${jobId}" not found`,
+          );
+        }
+
+        if (decision === JobStatus.APPROVED) {
+          if (job.company.verificationStatus !== VerificationStatus.VERIFIED) {
+            throw new ForbiddenException(
+              'The company must be verified before a job can be approved.',
+            );
+          }
+          if (deadlineHasPassed(job.deadline)) {
+            job.status = JobStatus.CLOSED;
+            return { job: await jobs.save(job), expired: true };
+          }
+        }
+
+        job.status = decision;
+        return { job: await jobs.save(job), expired: false };
+      },
+    );
+
+    if (result.expired) {
+      throw new BadRequestException(
+        'An expired job cannot be approved and has been closed.',
+      );
+    }
+    return result.job;
+  }
+
   // Returns only administrator-approved listings to jobseekers.
   getAllJobs() {
     return this.jobRepository.find({
       where: {
         status: JobStatus.APPROVED,
         deadline: MoreThan(new Date()),
-        company: { verificationStatus: VerificationStatus.VERIFIED},
+        company: { verificationStatus: VerificationStatus.VERIFIED },
       },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
       order: { createdAt: 'DESC' },
     });
   }
@@ -184,7 +288,7 @@ export class JobService {
   getJobsByEmployer(employerId: number) {
     return this.jobRepository.find({
       where: { company: { employerId } },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
       order: { createdAt: 'DESC' },
     });
   }
@@ -205,6 +309,10 @@ export class JobService {
     const query = this.jobRepository
       .createQueryBuilder('job')
       .leftJoinAndSelect('job.company', 'company')
+      .leftJoinAndSelect(
+        'job.applicationRequirements',
+        'applicationRequirements',
+      )
       .where('job.status = :status', { status: JobStatus.APPROVED })
       .andWhere('job.deadline > :now', { now: new Date() })
       .andWhere('company.verificationStatus = :companyStatus', {
@@ -233,9 +341,9 @@ export class JobService {
         id,
         status: JobStatus.APPROVED,
         deadline: MoreThan(new Date()),
-        company: { verificationStatus:VerificationStatus.VERIFIED },
+        company: { verificationStatus: VerificationStatus.VERIFIED },
       },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
     });
 
     if (!job) {
@@ -261,7 +369,7 @@ export class JobService {
   async getOneJobForEmployer(id: string, employerId: number) {
     const job = await this.jobRepository.findOne({
       where: { id, company: { employerId } },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
     });
 
     if (!job) {
