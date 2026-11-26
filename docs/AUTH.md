@@ -46,12 +46,10 @@ Authorization: Bearer <access_token>
 
 Tokens are signed with `JWT_SECRET` and expire after one day. Each protected
 request also reloads the account from Oracle, so deleted or deactivated users
-cannot continue using an existing token. Job-seeker registration is available
-at `POST /api/v1/authentication/register`; employer registration is available at
-`POST /api/v1/authentication/register/employer`. The backend assigns these roles
-without accepting a role from the request. Employers create and manage their
-company separately through `/api/v1/companies`. Email verification and login remain
-public so users can obtain an access token.
+cannot continue using an existing token. Public account registration is available
+at `POST /api/v1/authentication/register` and creates job-seeker accounts. The
+backend assigns the role without accepting a role from the request. Email
+verification and login remain public so users can obtain an access token.
 
 Administrator access is a user role checked by the JWT and role guards. The
 admin role does not own domain business logic: admin operations are registered

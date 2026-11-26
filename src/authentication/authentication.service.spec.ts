@@ -93,28 +93,6 @@ describe('AuthenticationService', () => {
     );
   });
 
-  it('assigns employer role only through the dedicated employer registration flow', async () => {
-    vi.mocked(nodemailer.createTransport).mockReturnValue({
-      sendMail: vi.fn().mockResolvedValue({}),
-      close: vi.fn(),
-    } as never);
-    userRepository.findOne.mockResolvedValue(null);
-    userRepository.save.mockImplementation(async (user) => ({
-      id: 2,
-      ...user,
-    }));
-
-    await service.registerEmployer({
-      name: 'Morgan Employer',
-      email: 'morgan@example.com',
-      password: 'StrongPass123!',
-    });
-
-    expect(userRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ role: 'employer' }),
-    );
-  });
-
   it('rejects role assignment in the public registration DTO', async () => {
     const dto = Object.assign(new RegisterDto(), {
       name: 'Taylor Admin',

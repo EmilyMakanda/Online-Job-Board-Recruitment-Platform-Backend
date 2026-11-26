@@ -18,8 +18,6 @@ import nodemailer from 'nodemailer';
 import { User } from './entities/user.entity.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
-import type { UserRole } from './roles.decorator.js';
-
 @Injectable()
 export class AuthenticationService {
   private readonly logger = new Logger(AuthenticationService.name);
@@ -142,19 +140,12 @@ export class AuthenticationService {
     }
   }
 
-  // Public registration creates job seekers; employer registration is a separate controlled route.
+  // Public registration creates job seekers.
   async register(dto: RegisterDto) {
-    return this.registerWithRole(dto, 'job_seeker');
+    return this.registerJobSeeker(dto);
   }
 
-  async registerEmployer(dto: RegisterDto) {
-    return this.registerWithRole(dto, 'employer');
-  }
-
-  private async registerWithRole(
-    dto: RegisterDto,
-    role: Exclude<UserRole, 'admin'>,
-  ) {
+  private async registerJobSeeker(dto: RegisterDto) {
     const name = dto.name?.trim();
     const email = dto.email?.trim().toLowerCase();
     const password = dto.password;
@@ -189,7 +180,7 @@ export class AuthenticationService {
       name,
       email,
       password: await bcrypt.hash(password, 12),
-      role,
+      role: 'job_seeker',
       isEmailVerified: 0,
       isActive: 1,
       emailVerificationTokenHash: this.hashToken(otp),
