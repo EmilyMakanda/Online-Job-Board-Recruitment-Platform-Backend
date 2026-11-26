@@ -120,10 +120,6 @@ describe('ApplicationsService', () => {
       size: 10,
     } as Express.Multer.File;
     jobService.getOneJob.mockResolvedValue(job);
-    userRepository.findOne.mockResolvedValue({
-      email: 'candidate@example.com',
-    });
-    applicationRepository.create.mockReturnValue(application);
     applicationRepository.save.mockResolvedValue(application);
     applicationRepository.findOne.mockResolvedValue(null);
 
