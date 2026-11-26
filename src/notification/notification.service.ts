@@ -5,6 +5,8 @@ import { Repository } from 'typeorm';
 import { Notification } from './notification.entity.js';
 import { CreateNotificationDto } from './create-notification.dto.js';
 import { EmailService } from '../email/email.service.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { paginated, paginationOptions } from '../common/pagination.js';
 
 @Injectable()
 export class NotificationsService {
@@ -56,18 +58,22 @@ export class NotificationsService {
     }
   }
 
-  async findByUser(userId: number) {
-    return this.notificationRepository.find({
+  async findByUser(userId: number, pagination: PaginationQueryDto) {
+    const result = await this.notificationRepository.findAndCount({
       where: { userId },
       order: { createdAt: 'DESC' },
+      ...paginationOptions(pagination),
     });
+    return paginated(result, pagination);
   }
 
-  async findUnread(userId: number) {
-    return this.notificationRepository.find({
+  async findUnread(userId: number, pagination: PaginationQueryDto) {
+    const result = await this.notificationRepository.findAndCount({
       where: { userId, isRead: 0 },
       order: { createdAt: 'DESC' },
+      ...paginationOptions(pagination),
     });
+    return paginated(result, pagination);
   }
 
   async markAsRead(id: number, userId: number) {

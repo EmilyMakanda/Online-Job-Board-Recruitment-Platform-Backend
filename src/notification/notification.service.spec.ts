@@ -12,6 +12,7 @@ describe('NotificationService', () => {
     create: vi.fn((notification) => notification),
     save: vi.fn(),
     find: vi.fn(),
+    findAndCount: vi.fn(),
     findOneBy: vi.fn(),
   };
   const emailService = {
@@ -91,5 +92,23 @@ describe('NotificationService', () => {
     });
 
     expect(notificationRepository.save).toHaveBeenCalledOnce();
+  });
+
+  it('returns a bounded page of the current user notifications', async () => {
+    const notifications = [{ ID: 12, userId: 7 }];
+    notificationRepository.findAndCount.mockResolvedValue([notifications, 1]);
+
+    await expect(
+      service.findByUser(7, { page: 1, limit: 20 } as never),
+    ).resolves.toMatchObject({
+      items: notifications,
+      total: 1,
+      page: 1,
+      limit: 20,
+      totalPages: 1,
+    });
+    expect(notificationRepository.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 0, take: 20 }),
+    );
   });
 });
