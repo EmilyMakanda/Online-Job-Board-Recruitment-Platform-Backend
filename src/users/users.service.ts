@@ -131,4 +131,47 @@ export class UsersService {
 
     return { message: `User with ID ${id} activated successfully` };
   }
+
+    async updateUserRole(
+    id: number,
+    newRole: 'job_seeker' | 'employer' | 'admin',
+    requesterId: number,
+  ) {
+    if (id === requesterId) {
+      throw new ForbiddenException(
+        'Administrators cannot change their own role.',
+      );
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { id },
+      select: { id: true, role: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with id ${id} not found`);
+    }
+
+    if (user.role === newRole) {
+      throw new ConflictException(
+        `User already has the ${newRole} role.`,
+      );
+    }
+
+    const result = await this.userRepository.update(
+      { id, role: user.role },
+      { role: newRole },
+    );
+
+    if (result.affected === 0) {
+      throw new ConflictException(
+        'The user role has changed. Please refresh and try again.',
+      );
+    }
+
+    return {
+      message: `User with ID ${id} successfully changed from ${user.role} to ${newRole}.`,
+      user: await this.findUser(id),
+    };
+  }
 }
