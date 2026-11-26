@@ -92,6 +92,12 @@ uses the `User` entity definition to add the column. Do not enable
 `DB_SYNCHRONIZE` on production databases just to apply this change.
 
 Admin moderation adds no job columns; existing `JOBS.STATUS` values fit the
+
+New employer job listings remain `PENDING` until reviewed by an administrator.
+Admins can retrieve the queue with `GET /job/admin/pending`, then approve or
+reject an individual pending job with `PATCH /job/:jobID/approve` or
+`PATCH /job/:jobID/reject`. Approval requires a verified company and an
+unexpired job deadline; expired pending jobs are closed instead.STATUS` values fit the
 existing `VARCHAR2` column. Before deploying with synchronization disabled,
 apply the Oracle-compatible TypeORM migration in
 `src/database/migrations/20261116100000-AdminModerationAndReports.ts` with
