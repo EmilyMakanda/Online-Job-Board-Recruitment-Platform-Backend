@@ -50,13 +50,6 @@ export class Company {
     length: 255,
     nullable: true,
   })
-  location: string | null;
-
-  @Column({
-    type: 'varchar2',
-    length: 255,
-    nullable: true,
-  })
   website: string | null;
 
   @Column({

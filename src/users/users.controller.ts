@@ -27,6 +27,7 @@ import type { Request } from 'express';
 import { UsersService } from './users.service.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto.js';
 import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../authentication/guards/roles.guards.js';
 import { Roles, UserRole } from '../authentication/roles.decorator.js';
@@ -241,4 +242,53 @@ export class UsersController {
   activate(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.activateUser(id);
   }
+
+  @Patch(':id/role')
+  @Roles('admin')
+  @ApiOperation({
+    summary: 'Change a users role (administrators only)',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'ID of the user whose role will be changed',
+    example: 21,
+  })
+  @ApiBody({ type: UpdateUserRoleDto })
+  @ApiResponse({
+    status: 200,
+    description: 'User role successfully updated.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid role supplied.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'A valid access token is required.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Only administrators can change user roles.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User account not found.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'User already has the requested role or concurrent update occurred.',
+  })
+  updateUserRole(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateUserRoleDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.usersService.updateUserRole(
+      id,
+      dto.role,
+      req.user.sub,
+    );
+  }
+
 }
