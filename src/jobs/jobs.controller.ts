@@ -28,6 +28,7 @@ import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../authentication/guards/roles.guards.js';
 import { Roles } from '../authentication/roles.decorator.js';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { AVAILABLE_APPLICATION_FIELDS } from '../applications/application-fields.js';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -47,6 +48,17 @@ interface AuthenticatedRequest extends Request {
 )
 export class JobController {
   constructor(private readonly jobService: JobService) {}
+
+  @Get('application-fields')
+  @ApiBearerAuth()
+  @Roles('employer')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiOperation({
+    summary: 'List application fields employers can select for job forms',
+  })
+  getApplicationFields() {
+    return AVAILABLE_APPLICATION_FIELDS;
+  }
 
   @Post()
   @ApiBearerAuth()

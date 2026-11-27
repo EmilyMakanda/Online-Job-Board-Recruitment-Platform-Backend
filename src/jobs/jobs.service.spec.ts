@@ -108,7 +108,6 @@ describe('JobService', () => {
         applicationRequirements: [
           {
             fieldKey: 'highestEducation',
-            fieldLabel: 'Highest education',
             isEnabled: true,
             isRequired: true,
           },
@@ -122,7 +121,7 @@ describe('JobService', () => {
         applicationRequirements: [
           {
             fieldKey: 'highestEducation',
-            fieldLabel: 'Highest education',
+            fieldLabel: 'Highest Education',
             isEnabled: 1,
             isRequired: 1,
           },
@@ -148,7 +147,6 @@ describe('JobService', () => {
           applicationRequirements: [
             {
               fieldKey: 'cv',
-              fieldLabel: 'CV',
               isEnabled: false,
               isRequired: true,
             },

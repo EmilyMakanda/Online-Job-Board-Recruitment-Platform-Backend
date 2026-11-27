@@ -12,33 +12,22 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import {
+  AVAILABLE_APPLICATION_FIELDS,
+  type ApplicationFieldKey,
+} from '../../applications/application-fields.js';
 
-export const JOB_APPLICATION_FIELD_KEYS = [
-  'cv',
-  'coverLetter',
-  'highestEducation',
-  'fieldOfStudy',
-  'yearsOfExperience',
-  'currentEmploymentStatus',
-  'expectedSalary',
-  'noticePeriod',
-  'availableStartDate',
-  'willingToRelocate',
-  'portfolioUrl',
-  'linkedinUrl',
-  'additionalAnswers',
-] as const;
+export const JOB_APPLICATION_FIELD_KEYS =
+  AVAILABLE_APPLICATION_FIELDS.map(({ fieldKey }) => fieldKey);
 
 export class JobApplicationFieldDto {
-  @ApiProperty({ enum: JOB_APPLICATION_FIELD_KEYS, example: 'cv' })
+  @ApiProperty({
+    enum: JOB_APPLICATION_FIELD_KEYS,
+    example: 'highestEducation',
+  })
   @IsString()
   @IsIn(JOB_APPLICATION_FIELD_KEYS)
-  fieldKey: (typeof JOB_APPLICATION_FIELD_KEYS)[number];
-
-  @ApiProperty({ example: 'CV / Resume', maxLength: 100 })
-  @IsString()
-  @MaxLength(100)
-  fieldLabel: string;
+  fieldKey: ApplicationFieldKey;
 
   @ApiProperty({ example: true })
   @IsBoolean()
