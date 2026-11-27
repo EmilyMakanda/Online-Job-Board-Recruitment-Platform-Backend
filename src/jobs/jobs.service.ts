@@ -12,8 +12,12 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 import { paginated, paginationOptions } from '../common/pagination.js';
 import {
   CreateJobDto,
-  JOB_APPLICATION_FIELD_KEYS,
 } from './dto/create-job.dto.js';
+import {
+  APPLICATION_FIELD_KEYS,
+  getApplicationFieldLabel,
+  type ApplicationFieldKey,
+} from '../applications/application-fields.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
 import { Job, JobStatus } from './entities/jobs.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
@@ -90,7 +94,6 @@ export class JobService {
     const applicationRequirements = dto.applicationRequirements ?? [
       {
         fieldKey: 'cv',
-        fieldLabel: 'CV / Resume',
         isEnabled: true,
         isRequired: true,
       },
@@ -98,7 +101,7 @@ export class JobService {
 
     for (const requirement of applicationRequirements) {
       if (
-        !JOB_APPLICATION_FIELD_KEYS.includes(requirement.fieldKey) ||
+        !APPLICATION_FIELD_KEYS.includes(requirement.fieldKey) ||
         (requirement.isRequired && !requirement.isEnabled)
       ) {
         throw new BadRequestException(
@@ -118,7 +121,9 @@ export class JobService {
       company,
       applicationRequirements: applicationRequirements.map((requirement) => ({
         fieldKey: requirement.fieldKey,
-        fieldLabel: requiredTrimmedText(requirement.fieldLabel, 'Field label'),
+        fieldLabel: getApplicationFieldLabel(
+          requirement.fieldKey as ApplicationFieldKey,
+        ),
         isRequired: Number(requirement.isRequired),
         isEnabled: Number(requirement.isEnabled),
       })),

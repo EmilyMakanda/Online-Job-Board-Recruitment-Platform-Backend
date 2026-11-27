@@ -2,24 +2,24 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsArray,
   IsBoolean,
-  IsString,
-  MaxLength,
+  IsIn,
+  ArrayUnique,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import {
+  APPLICATION_FIELD_KEYS,
+  type ApplicationFieldKey,
+} from '../application-fields.js';
 
 export class JobRequirementItemDto {
   @ApiProperty({
     example: 'highestEducation',
     description: 'Application field key',
+    enum: APPLICATION_FIELD_KEYS,
   })
-  @IsString()
-  fieldKey: string;
-
-  @ApiProperty({ example: 'Highest Education' })
-  @IsString()
-  @MaxLength(100)
-  fieldLabel: string;
+  @IsIn(APPLICATION_FIELD_KEYS)
+  fieldKey: ApplicationFieldKey;
 
   @ApiProperty({ example: true })
   @IsBoolean()
@@ -33,6 +33,7 @@ export class JobRequirementItemDto {
 export class SetJobApplicationRequirementsDto {
   @ApiProperty({ type: [JobRequirementItemDto] })
   @IsArray()
+  @ArrayUnique((field: JobRequirementItemDto) => field.fieldKey)
   @ValidateNested({ each: true })
   @Type(() => JobRequirementItemDto)
   requirements: JobRequirementItemDto[];

@@ -3,6 +3,7 @@ import { DataSource } from 'typeorm';
 import { User } from '../../authentication/entities/user.entity.js';
 import { Application } from '../../applications/entities/application.entity.js';
 import { ApplicationDocument } from '../../applications/entities/application-document.entity.js';
+import { JobApplicationRequirement } from '../../applications/entities/job-application-requirements.entity.js';
 import { Company } from '../../company/entities/company.entity.js';
 import { Job } from '../../jobs/entities/jobs.entity.js';
 import { Notification } from '../../notification/notification.entity.js';
@@ -18,6 +19,7 @@ const seedDataSource = new DataSource({
     Job,
     Application,
     ApplicationDocument,
+    JobApplicationRequirement,
     Notification,
     Report,
   ],
