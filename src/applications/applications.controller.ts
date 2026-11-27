@@ -185,7 +185,7 @@ export class ApplicationsController {
         },
         coverLetter: {
           type: 'string',
-          maxLength: 2000,
+          format: 'binary',
         },
         cv: {
           type: 'string',
