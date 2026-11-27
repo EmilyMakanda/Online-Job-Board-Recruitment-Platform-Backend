@@ -9,10 +9,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { 
+import {
   Company,
   VerificationStatus,
- } from './entities/company.entity.js';
+} from './entities/company.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
 import { CreateCompanyDto } from './dto/create-company.dto.js';
 import { UpdateCompanyDto } from './dto/update-company.dto.js';
@@ -31,7 +31,7 @@ export class CompanyService {
     employerId: number,
     createCompanyDto: CreateCompanyDto,
   ): Promise<Company> {
-    // Check that the employer exists
+    // Check that the employer exists.
     const employer = await this.userRepository.findOneBy({
       id: employerId,
     });
@@ -40,7 +40,7 @@ export class CompanyService {
       throw new NotFoundException('Employer user does not exist');
     }
 
-    // Check whether this employer already owns a company
+    // Check whether this employer already owns a company.
     const existingCompany = await this.companyRepository.findOneBy({
       employerId,
     });
@@ -51,9 +51,12 @@ export class CompanyService {
       );
     }
 
-    // Check whether the registration number is already registered
+    // Normalize the registration number before checking for duplicates.
+    const registrationNumber =
+      createCompanyDto.registrationNumber.trim().toUpperCase();
+
     const existingRegistration = await this.companyRepository.findOneBy({
-      registrationNumber: createCompanyDto.registrationNumber,
+      registrationNumber,
     });
 
     if (existingRegistration) {
@@ -62,9 +65,10 @@ export class CompanyService {
       );
     }
 
-    // Create the company with pending verification status
+    // Create the company with pending verification status.
     const company = this.companyRepository.create({
       ...createCompanyDto,
+      registrationNumber,
       employerId,
     });
 
@@ -96,14 +100,21 @@ export class CompanyService {
   ): Promise<Company> {
     const company = await this.findOne(companyId);
 
-    // Ensure the requester owns this company
+    // Ensure the requester owns this company.
     if (company.employerId !== requesterId) {
       throw new ForbiddenException(
         'You can only edit your own company',
       );
     }
 
-    // Apply only fields supplied in the update DTO
+    // Reject an empty update request.
+    if (Object.keys(updateCompanyDto).length === 0) {
+      throw new BadRequestException(
+        'Provide at least one field to update',
+      );
+    }
+
+    // Apply only fields supplied in the update DTO.
     const updates = Object.fromEntries(
       Object.entries(updateCompanyDto).filter(
         ([, value]) => value !== undefined,
@@ -116,41 +127,47 @@ export class CompanyService {
   }
 
   async findPendingCompanies(): Promise<Company[]> {
-  return this.companyRepository.find({
-    where: {
-      verificationStatus: VerificationStatus.PENDING,
-    },
-    order: {
-      createdAt: 'ASC',
-    },
-  });
-}
-
-async verifyCompany(companyId: string): Promise<Company> {
-  const company = await this.findOne(companyId);
-
-  if (company.verificationStatus === VerificationStatus.VERIFIED) {
-    throw new ConflictException('Company is already verified');
+    return this.companyRepository.find({
+      where: {
+        verificationStatus: VerificationStatus.PENDING,
+      },
+      order: {
+        createdAt: 'ASC',
+      },
+    });
   }
 
-  company.verificationStatus = VerificationStatus.VERIFIED;
-  company.verifiedAt = new Date();
+  async verifyCompany(companyId: string): Promise<Company> {
+    const company = await this.findOne(companyId);
 
-  return this.companyRepository.save(company);
-}
+    // Only pending companies can be verified.
+    if (company.verificationStatus !== VerificationStatus.PENDING) {
+      throw new ConflictException(
+        'Only pending companies can be verified',
+      );
+    }
 
-async rejectCompany(companyId: string): Promise<Company> {
-  const company = await this.findOne(companyId);
+    company.verificationStatus = VerificationStatus.VERIFIED;
+    company.verifiedAt = new Date();
 
-  if (company.verificationStatus === VerificationStatus.REJECTED) {
-    throw new ConflictException('Company is already rejected');
+    return this.companyRepository.save(company);
   }
 
-  company.verificationStatus = VerificationStatus.REJECTED;
-  company.verifiedAt = null;
+  async rejectCompany(companyId: string): Promise<Company> {
+    const company = await this.findOne(companyId);
 
-  return this.companyRepository.save(company);
-}
+    // Only pending companies can be rejected.
+    if (company.verificationStatus !== VerificationStatus.PENDING) {
+      throw new ConflictException(
+        'Only pending companies can be rejected',
+      );
+    }
+
+    company.verificationStatus = VerificationStatus.REJECTED;
+    company.verifiedAt = null;
+
+    return this.companyRepository.save(company);
+  }
 
   async remove(
     companyId: string,
@@ -158,7 +175,7 @@ async rejectCompany(companyId: string): Promise<Company> {
   ): Promise<void> {
     const company = await this.findOne(companyId);
 
-    // Ensure the requester owns this company
+    // Ensure the requester owns this company.
     if (company.employerId !== requesterId) {
       throw new ForbiddenException(
         'You can only delete your own company',
