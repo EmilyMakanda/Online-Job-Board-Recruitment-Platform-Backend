@@ -211,13 +211,10 @@ export class ApplicationsService {
           const application = applications.create({
             job,
             jobSeekerId,
-<<<<<<< feature/application-module
-=======
             coverLetter: enabledKeys.has('coverLetter')
               ? dto.coverLetter?.trim() || null
               : null,
             answers: JSON.stringify(answers),
->>>>>>> main
             status: ApplicationStatus.SUBMITTED,
           });
           const saved = await applications.save(application);
@@ -341,9 +338,23 @@ export class ApplicationsService {
   }
 
   private presentApplication(application: Application) {
+    let answers: Record<string, string | number | boolean> = {};
+    if (application.answers) {
+      try {
+        const parsed = JSON.parse(application.answers);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          answers = parsed;
+        }
+      } catch {
+        this.logger.warn(
+          `Application ${application.applicationId} has invalid stored answers JSON.`,
+        );
+      }
+    }
+
     return {
       ...application,
-      answers: application.answers ? JSON.parse(application.answers) : {},
+      answers,
       documents: (application.documents ?? []).map((document) => ({
         documentId: document.documentId,
         applicationId: document.applicationId,
@@ -526,9 +537,7 @@ export class ApplicationsService {
           throw new NotFoundException('Application not found.');
         }
         if (
-          application.status === ApplicationStatus.HIRED ||
-          application.status === ApplicationStatus.REJECTED ||
-          application.status === ApplicationStatus.WITHDRAWN
+          application.status !== ApplicationStatus.SUBMITTED
         ) {
           throw new BadRequestException(
             'This application can no longer be withdrawn.',

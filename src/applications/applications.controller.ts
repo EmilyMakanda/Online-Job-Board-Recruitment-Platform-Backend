@@ -130,7 +130,7 @@ export class ApplicationsController {
 @ApiBody({
   schema: {
     type: 'object',
-    required: ['jobId', 'cv'],
+    required: ['jobId'],
     properties: {
       jobId: {
         type: 'string',
@@ -184,18 +184,13 @@ export class ApplicationsController {
       },
       coverLetter: {
         type: 'string',
-        format: 'binary',
+        maxLength: 2000,
+        example: 'I am interested in this position...',
       },
       cv: {
         type: 'string',
         format: 'binary',
       },
-      supportingDocuments: {
-        type: 'array',
-        items: {
-          type: 'string',
-          format: 'binary',
-        },
         supportingDocuments: {
           type: 'array',
           items: {

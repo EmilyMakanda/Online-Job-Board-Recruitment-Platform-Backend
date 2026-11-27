@@ -58,6 +58,10 @@ describe('ApplicationsService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    userRepository.findOne.mockResolvedValue({
+      id: 7,
+      email: 'candidate@example.com',
+    });
     applicationRepository.create.mockImplementation(
       (application) => application,
     );
