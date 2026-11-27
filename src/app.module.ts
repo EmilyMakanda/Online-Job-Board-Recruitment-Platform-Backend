@@ -12,6 +12,7 @@ import { NotificationsModule } from './notification/notification.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { AdminModerationAndReports20261116100000 } from './database/migrations/20261116100000-AdminModerationAndReports.js';
 import { ApplicationDocumentsAndLifecycle20261118100000 } from './database/migrations/20261118100000-ApplicationDocumentsAndLifecycle.js';
+import { JobApplicationRequirements20261125100000 } from './database/migrations/20261125100000-JobApplicationRequirements.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -44,10 +45,11 @@ if (observeEnabled && (!observeAppKey || !observeAppSecret)) {
         migrations: [
           AdminModerationAndReports20261116100000,
           ApplicationDocumentsAndLifecycle20261118100000,
+          JobApplicationRequirements20261125100000,
         ],
         migrationsRun: false,
         autoLoadEntities: true,
-        synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
+        synchronize: config.get<string>('DB_SYNCHRONIZE') !== 'false',
       }),
     }),
 

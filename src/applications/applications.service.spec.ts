@@ -4,11 +4,14 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import type { Repository } from 'typeorm';
-import { Job } from '../jobs/entities/jobs.entity.js';
-import { JobStatus } from '../jobs/entities/jobs.entity.js';
+import type { Express } from 'express';
+import { vi } from 'vitest';
+
+import { Job, JobStatus } from '../jobs/entities/jobs.entity.js';
 import { JobService } from '../jobs/jobs.service.js';
 import { User } from '../authentication/entities/user.entity.js';
 import { NotificationsService } from '../notification/notification.service.js';
+
 import {
   Application,
   ApplicationStatus,
@@ -17,6 +20,7 @@ import {
   ApplicationDocument,
   ApplicationDocumentType,
 } from './entities/application-document.entity.js';
+
 import { ApplicationsService } from './applications.service.js';
 
 describe('ApplicationsService', () => {
@@ -40,6 +44,7 @@ describe('ApplicationsService', () => {
       entity === Application ? applicationRepository : documentRepository,
     ),
   };
+
   const jobService = {
     getOneJob: vi.fn(),
   };
@@ -48,6 +53,7 @@ describe('ApplicationsService', () => {
     find: vi.fn(),
   };
   const notificationsService = { create: vi.fn() };
+
   let service: ApplicationsService;
 
   beforeEach(() => {
@@ -69,28 +75,44 @@ describe('ApplicationsService', () => {
       id: 'job-uuid',
       title: 'Engineer',
       status: JobStatus.APPROVED,
+      applicationRequirements: [
+        {
+          fieldKey: 'cv',
+          fieldLabel: 'CV / Resume',
+          isEnabled: 1,
+          isRequired: 1,
+        },
+        {
+          fieldKey: 'coverLetter',
+          fieldLabel: 'Cover letter',
+          isEnabled: 1,
+          isRequired: 0,
+        },
+      ],
     } as Job;
+
     const application = {
       applicationId: 5,
       job,
       jobSeekerId: 7,
       status: ApplicationStatus.SUBMITTED,
+      coverLetter: null,
+      answers: '{}',
+      appliedAt: new Date(),
+      updatedAt: new Date(),
       documents: [],
     } as Application;
+
     const cv = {
       originalname: 'cv.pdf',
+      path: '/tmp/cv-uuid.pdf',
       mimetype: 'application/pdf',
       size: 10,
-      path: '/tmp/cv-uuid.pdf',
     } as Express.Multer.File;
     jobService.getOneJob.mockResolvedValue(job);
-    applicationRepository.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(application);
-    applicationRepository.create.mockReturnValue(application);
     applicationRepository.save.mockResolvedValue(application);
-    documentRepository.create.mockImplementation((document) => document);
     documentRepository.save.mockResolvedValue([]);
+    applicationRepository.findOne.mockResolvedValue(null);
 
     await expect(
       service.create(
@@ -110,7 +132,8 @@ describe('ApplicationsService', () => {
       job,
       jobSeekerId: 7,
       coverLetter: 'Interested in the role.',
-      status: ApplicationStatus.SUBMITTED,
+      answers: '{}',
+      status: expect.any(String),
     });
     expect(documentRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -131,20 +154,43 @@ describe('ApplicationsService', () => {
     jobService.getOneJob.mockResolvedValue({
       id: 'job-uuid',
       status: JobStatus.APPROVED,
+      applicationRequirements: [
+        {
+          fieldKey: 'cv',
+          fieldLabel: 'CV / Resume',
+          isEnabled: 1,
+          isRequired: 1,
+        },
+      ],
     });
     applicationRepository.findOne.mockResolvedValue({ applicationId: 1 });
 
     await expect(
       service.create({ jobId: 'job-uuid' }, 7, cv),
     ).rejects.toBeInstanceOf(ConflictException);
+
     expect(applicationRepository.create).not.toHaveBeenCalled();
   });
 
-  it('requires a CV for every application', async () => {
+  it('requires a CV when the job marks the CV field as required', async () => {
+    jobService.getOneJob.mockResolvedValue({
+      id: 'job-uuid',
+      title: 'Engineer',
+      status: JobStatus.APPROVED,
+      applicationRequirements: [
+        {
+          fieldKey: 'cv',
+          fieldLabel: 'CV / Resume',
+          isEnabled: 1,
+          isRequired: 1,
+        },
+      ],
+    });
+
     await expect(
       service.create({ jobId: 'job-uuid' }, 7, undefined, []),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(jobService.getOneJob).not.toHaveBeenCalled();
+    expect(jobService.getOneJob).toHaveBeenCalledWith('job-uuid');
   });
 
   it('does not expose server file paths in application responses', async () => {
@@ -182,6 +228,10 @@ describe('ApplicationsService', () => {
       jobSeekerId: 7,
       status: ApplicationStatus.SUBMITTED,
       coverLetter: 'Old letter',
+      answers: null,
+      appliedAt: new Date(),
+      updatedAt: new Date(),
+      job: { id: 'job-uuid' } as Job,
       documents: [],
     } as Application;
     applicationRepository.findOne.mockResolvedValue(application);
@@ -198,7 +248,11 @@ describe('ApplicationsService', () => {
       applicationId: 5,
       jobSeekerId: 7,
       status: ApplicationStatus.IN_REVIEW,
-      job: { title: 'Engineer', postedBy: { id: 12 } },
+      coverLetter: null,
+      answers: null,
+      appliedAt: new Date(),
+      updatedAt: new Date(),
+      job: { title: 'Engineer', postedBy: { id: 12 } } as unknown as Job,
       documents: [],
     } as Application;
     applicationRepository.findOne.mockResolvedValue(application);
@@ -216,6 +270,10 @@ describe('ApplicationsService', () => {
       applicationId: 5,
       jobSeekerId: 7,
       status: ApplicationStatus.SUBMITTED,
+      coverLetter: null,
+      answers: null,
+      appliedAt: new Date(),
+      updatedAt: new Date(),
       job: { postedBy: { id: 12 } },
     } as Application;
     applicationRepository.findOne.mockResolvedValue(application);
@@ -236,6 +294,11 @@ describe('ApplicationsService', () => {
       applicationId: 5,
       jobSeekerId: 7,
       status: ApplicationStatus.SUBMITTED,
+      coverLetter: null,
+      answers: null,
+      appliedAt: new Date(),
+      updatedAt: new Date(),
+      job: { id: 'job-uuid' } as Job,
       documents: [],
     } as Application;
     applicationRepository.findOne.mockResolvedValue(application);

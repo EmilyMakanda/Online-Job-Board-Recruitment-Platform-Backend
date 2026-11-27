@@ -12,6 +12,7 @@ import {
 } from 'typeorm';
 import { User } from '../../authentication/entities/user.entity.js';
 import { Application } from '../../applications/entities/application.entity.js';
+import { JobApplicationRequirement } from '../../applications/entities/job-application-requirements.entity.js';
 import { Company } from '../../company/entities/company.entity.js';
 
 export enum JobStatus {
@@ -21,6 +22,7 @@ export enum JobStatus {
   REJECTED = 'REJECTED',
   CLOSED = 'CLOSED',
   REMOVED = 'REMOVED',
+  OPEN = 'OPEN',
 }
 
 @Entity('jobs')
@@ -54,6 +56,13 @@ export class Job {
 
   @OneToMany(() => Application, (application) => application.job)
   applications: Relation<Application[]>;
+
+  @OneToMany(
+    () => JobApplicationRequirement,
+    (requirement) => requirement.job,
+    { cascade: ['insert', 'update'] },
+  )
+  applicationRequirements: Relation<JobApplicationRequirement[]>;
 
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;

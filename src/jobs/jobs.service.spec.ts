@@ -19,6 +19,12 @@ describe('JobService', () => {
     update: vi.fn(),
     remove: vi.fn(),
     createQueryBuilder: vi.fn(),
+    manager: {
+      transaction: vi.fn(),
+    },
+  };
+  const transactionManager = {
+    getRepository: vi.fn(() => jobRepository),
   };
   const userRepository = { findOne: vi.fn() };
   const companyRepository = { findOneBy: vi.fn() };
@@ -26,6 +32,9 @@ describe('JobService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    jobRepository.manager.transaction.mockImplementation((work) =>
+      work(transactionManager),
+    );
     service = new JobService(
       jobRepository as unknown as Repository<Job>,
       userRepository as unknown as Repository<User>,
@@ -39,7 +48,7 @@ describe('JobService', () => {
       companyId: 3,
       employerId: 12,
       verificationStatus: 'verified',
-    } as Company;
+    } as unknown as Company;
     const job = { id: 'job-id', status: JobStatus.PENDING } as Job;
     userRepository.findOne.mockResolvedValue(user);
     companyRepository.findOneBy.mockResolvedValue(company);
@@ -68,7 +77,85 @@ describe('JobService', () => {
       status: JobStatus.PENDING,
       postedBy: user,
       company,
+      applicationRequirements: [
+        {
+          fieldKey: 'cv',
+          fieldLabel: 'CV / Resume',
+          isEnabled: 1,
+          isRequired: 1,
+        },
+      ],
     });
+  });
+
+  it('saves employer-selected required fields with the new job', async () => {
+    userRepository.findOne.mockResolvedValue({ id: 12 });
+    companyRepository.findOneBy.mockResolvedValue({
+      employerId: 12,
+      verificationStatus: 'verified',
+    });
+    jobRepository.create.mockImplementation((job) => job);
+    jobRepository.save.mockImplementation((job) => Promise.resolve(job));
+
+    await service.createJob(
+      {
+        title: 'Engineer',
+        description: 'Build software',
+        location: 'Remote',
+        deadline: new Date('2099-07-15T23:59:59.000Z'),
+        applicationRequirements: [
+          {
+            fieldKey: 'highestEducation',
+            fieldLabel: 'Highest education',
+            isEnabled: true,
+            isRequired: true,
+          },
+        ],
+      },
+      12,
+    );
+
+    expect(jobRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        applicationRequirements: [
+          {
+            fieldKey: 'highestEducation',
+            fieldLabel: 'Highest education',
+            isEnabled: 1,
+            isRequired: 1,
+          },
+        ],
+      }),
+    );
+  });
+
+  it('does not allow a disabled application field to be required', async () => {
+    userRepository.findOne.mockResolvedValue({ id: 12 });
+    companyRepository.findOneBy.mockResolvedValue({
+      employerId: 12,
+      verificationStatus: 'verified',
+    });
+
+    await expect(
+      service.createJob(
+        {
+          title: 'Engineer',
+          description: 'Build software',
+          location: 'Remote',
+          deadline: new Date('2099-07-15T23:59:59.000Z'),
+          applicationRequirements: [
+            {
+              fieldKey: 'cv',
+              fieldLabel: 'CV',
+              isEnabled: false,
+              isRequired: true,
+            },
+          ],
+        },
+        12,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(jobRepository.save).not.toHaveBeenCalled();
   });
 
   it('does not allow an employer without a company to create a job', async () => {
@@ -138,7 +225,7 @@ describe('JobService', () => {
     await expect(service.getJobsByEmployer(12)).resolves.toBe(jobs);
     expect(jobRepository.find).toHaveBeenCalledWith({
       where: { company: { employerId: 12 } },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
       order: { createdAt: 'DESC' },
     });
   });
@@ -154,7 +241,7 @@ describe('JobService', () => {
         deadline: expect.objectContaining({ _type: 'moreThan' }),
         company: { verificationStatus: 'verified' },
       },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
       order: { createdAt: 'DESC' },
     });
   });
@@ -167,7 +254,7 @@ describe('JobService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(jobRepository.findOne).toHaveBeenCalledWith({
       where: { id: 'job-id', company: { employerId: 12 } },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
     });
   });
 
@@ -186,6 +273,10 @@ describe('JobService', () => {
     expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
       'job.company',
       'company',
+    );
+    expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
+      'job.applicationRequirements',
+      'applicationRequirements',
     );
     expect(queryBuilder.where).toHaveBeenCalledWith('job.status = :status', {
       status: JobStatus.APPROVED,
@@ -217,7 +308,7 @@ describe('JobService', () => {
 
     expect(jobRepository.findOne).toHaveBeenCalledWith({
       where: { id: 'job-id', company: { employerId: 12 } },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
     });
     expect(job.title).toBe('New title');
     expect(jobRepository.save).toHaveBeenCalledWith(job);
@@ -350,6 +441,86 @@ describe('JobService', () => {
     expect(jobRepository.save).not.toHaveBeenCalled();
   });
 
+  it('lists pending jobs with the details needed for administrator review', async () => {
+    jobRepository.find.mockResolvedValue([]);
+
+    await service.getPendingJobsForReview();
+
+    expect(jobRepository.find).toHaveBeenCalledWith({
+      where: { status: JobStatus.PENDING },
+      relations: {
+        company: true,
+        postedBy: true,
+        applicationRequirements: true,
+      },
+      order: { createdAt: 'ASC' },
+    });
+  });
+
+  it('allows administrators to approve and reject pending jobs', async () => {
+    const approvedJob = {
+      id: 'approve-id',
+      status: JobStatus.PENDING,
+      deadline: new Date('2099-07-15T23:59:59.000Z'),
+      company: { verificationStatus: 'verified' },
+    } as Job;
+    const rejectedJob = {
+      id: 'reject-id',
+      status: JobStatus.PENDING,
+      company: { verificationStatus: 'verified' },
+    } as Job;
+    jobRepository.findOne
+      .mockResolvedValueOnce({ status: JobStatus.PENDING })
+      .mockResolvedValueOnce(approvedJob)
+      .mockResolvedValueOnce({ status: JobStatus.PENDING })
+      .mockResolvedValueOnce(rejectedJob);
+    jobRepository.save.mockImplementation((job) => Promise.resolve(job));
+
+    await expect(service.approveJob('approve-id')).resolves.toBe(approvedJob);
+    await expect(service.rejectJob('reject-id')).resolves.toBe(rejectedJob);
+
+    expect(approvedJob.status).toBe(JobStatus.APPROVED);
+    expect(rejectedJob.status).toBe(JobStatus.REJECTED);
+    expect(jobRepository.manager.transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it('prevents approving non-pending or expired jobs', async () => {
+    jobRepository.findOne
+      .mockResolvedValueOnce({ status: JobStatus.APPROVED })
+      .mockResolvedValueOnce({ status: JobStatus.PENDING })
+      .mockResolvedValueOnce({
+        status: JobStatus.PENDING,
+        deadline: new Date('2000-07-15T21:59:59.999Z'),
+        company: { verificationStatus: 'verified' },
+      });
+
+    await expect(service.approveJob('approved-id')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(service.approveJob('expired-id')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+
+    expect(jobRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: JobStatus.CLOSED }),
+    );
+  });
+
+  it('does not approve a job whose company is not verified', async () => {
+    jobRepository.findOne
+      .mockResolvedValueOnce({ status: JobStatus.PENDING })
+      .mockResolvedValueOnce({
+        status: JobStatus.PENDING,
+        deadline: new Date('2099-07-15T23:59:59.000Z'),
+        company: { verificationStatus: 'pending' },
+      });
+
+    await expect(service.approveJob('job-id')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(jobRepository.save).not.toHaveBeenCalled();
+  });
+
   it('only returns approved jobs to job seekers by ID', async () => {
     jobRepository.findOne.mockResolvedValue(null);
 
@@ -363,7 +534,7 @@ describe('JobService', () => {
         deadline: expect.objectContaining({ _type: 'moreThan' }),
         company: { verificationStatus: 'verified' },
       },
-      relations: { company: true },
+      relations: { company: true, applicationRequirements: true },
     });
   });
 
