@@ -126,68 +126,73 @@ export class ApplicationsController {
     summary: 'Submit a job application with a CV and a supporting documents',
   })
   @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['jobId'],
-      description:
-        'Submit the fields enabled for the selected job. A CV is required only when that job marks it as required.',
-      properties: {
-        jobId: {
-          type: 'string',
-          format: 'uuid',
-          example: '42f83d15-c798-4a46-9e83-d0fdb60a5e15',
-        },
-        highestEducation: {
-          type: 'string',
-          example: "Bachelor's degree",
-        },
-        fieldOfStudy: {
-          type: 'string',
-          example: 'Computer Science',
-        },
-        yearsOfExperience: {
-          type: 'number',
-          example: 2,
-        },
-        currentEmploymentStatus: {
-          type: 'string',
-          example: 'Employed',
-        },
-        expectedSalary: {
-          type: 'number',
-          example: 850000,
-        },
-        noticePeriod: {
-          type: 'string',
-          example: 'One month',
-        },
-        availableStartDate: {
-          type: 'string',
-          format: 'date',
-          example: '2027-01-05',
-        },
-        willingToRelocate: {
-          type: 'boolean',
-          example: true,
-        },
-        portfolioUrl: {
-          type: 'string',
-          example: 'https://myportfolio.com',
-        },
-        linkedinUrl: {
-          type: 'string',
-          example: 'https://linkedin.com/in/example',
-        },
-        additionalAnswers: {
-          type: 'string',
-          example: '{"whyJoinUs":"I am interested in this position"}',
-        },
-        coverLetter: {
-          type: 'string',
-          format: 'binary',
-        },
-        cv: {
+  
+@ApiBody({
+  schema: {
+    type: 'object',
+    required: ['jobId', 'cv'],
+    properties: {
+      jobId: {
+        type: 'string',
+        format: 'uuid',
+        example: '42f83d15-c798-4a46-9e83-d0fdb60a5e15',
+      },
+      highestEducation: {
+        type: 'string',
+        example: "Bachelor's degree",
+      },
+      fieldOfStudy: {
+        type: 'string',
+        example: 'Computer Science',
+      },
+      yearsOfExperience: {
+        type: 'number',
+        example: 2,
+      },
+      currentEmploymentStatus: {
+        type: 'string',
+        example: 'Employed',
+      },
+      expectedSalary: {
+        type: 'number',
+        example: 850000,
+      },
+      noticePeriod: {
+        type: 'string',
+        example: 'One month',
+      },
+      availableStartDate: {
+        type: 'string',
+        format: 'date',
+        example: '2027-01-05',
+      },
+      willingToRelocate: {
+        type: 'boolean',
+        example: true,
+      },
+      portfolioUrl: {
+        type: 'string',
+        example: 'https://myportfolio.com',
+      },
+      linkedinUrl: {
+        type: 'string',
+        example: 'https://linkedin.com/in/example',
+      },
+      additionalAnswers: {
+        type: 'string',
+        example: '{"whyJoinUs":"I am interested in this position"}',
+      },
+      coverLetter: {
+        type: 'string',
+        format: 'binary',
+      },
+      cv: {
+        type: 'string',
+        format: 'binary',
+      },
+      supportingDocuments: {
+        type: 'array',
+        items: {
           type: 'string',
           format: 'binary',
         },

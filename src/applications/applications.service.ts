@@ -211,10 +211,13 @@ export class ApplicationsService {
           const application = applications.create({
             job,
             jobSeekerId,
+<<<<<<< feature/application-module
+=======
             coverLetter: enabledKeys.has('coverLetter')
               ? dto.coverLetter?.trim() || null
               : null,
             answers: JSON.stringify(answers),
+>>>>>>> main
             status: ApplicationStatus.SUBMITTED,
           });
           const saved = await applications.save(application);
