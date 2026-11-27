@@ -106,7 +106,7 @@ export class CreateApplicationDto {
   additionalAnswers?: string;
 
 @ApiPropertyOptional({
-  description: 'Applicant current employment status',
+  description: 'Applicants current employment status',
   example: 'Employed',
 })
 @IsOptional()
