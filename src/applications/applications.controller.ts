@@ -17,13 +17,14 @@ import {
   Query,
   Req,
   Res,
+  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
@@ -39,7 +40,6 @@ import {
 } from '@nestjs/swagger';
 import { ApplicationsService } from './applications.service.js';
 import { CreateApplicationDto } from './dto/create-application.dto.js';
-import { UpdateApplicationDto } from './dto/update-application.dto.js';
 import { UpdateApplicationStatusDto } from './dto/update-application-status.dto.js';
 import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../authentication/guards/roles.guards.js';
@@ -68,11 +68,18 @@ class CleanupUploadsOnErrorInterceptor implements NestInterceptor {
     const request = context
       .switchToHttp()
       .getRequest<
-        Request & { files?: Record<string, Express.Multer.File[]> }
+        Request & {
+          file?: Express.Multer.File;
+          files?: Record<string, Express.Multer.File[]>;
+        }
       >();
     return next.handle().pipe(
       catchError((error: unknown) => {
-        for (const file of Object.values(request.files ?? {}).flat()) {
+        const uploadedFiles = [
+          ...Object.values(request.files ?? {}).flat(),
+          ...(request.file ? [request.file] : []),
+        ];
+        for (const file of uploadedFiles) {
           if (!file.path || !existsSync(file.path)) {
             continue;
           }
@@ -123,7 +130,8 @@ export class ApplicationsController {
   @Post()
   @Roles('job_seeker')
   @ApiOperation({
-    summary: 'Submit a job application with a CV and a supporting documents',
+    summary:
+      'Submit a job application with a CV, optional cover letter, and supporting documents',
   })
   @ApiConsumes('multipart/form-data')
   
@@ -184,8 +192,7 @@ export class ApplicationsController {
       },
       coverLetter: {
         type: 'string',
-        maxLength: 2000,
-        example: 'I am interested in this position...',
+        format: 'binary',
       },
       cv: {
         type: 'string',
@@ -205,6 +212,7 @@ export class ApplicationsController {
     FileFieldsInterceptor(
       [
         { name: 'cv', maxCount: 1 },
+        { name: 'coverLetter', maxCount: 1 },
         { name: 'supportingDocuments', maxCount: 5 },
       ],
       {
@@ -217,7 +225,7 @@ export class ApplicationsController {
               `${randomUUID()}${extname(file.originalname).toLowerCase()}`,
             ),
         }),
-        limits: { fileSize: 5 * 1024 * 1024, files: 6 },
+        limits: { fileSize: 5 * 1024 * 1024, files: 7 },
         fileFilter,
       },
     ),
@@ -228,17 +236,19 @@ export class ApplicationsController {
     @UploadedFiles()
     files: {
       cv?: Express.Multer.File[];
-      coverLetterFile?: Express.Multer.File[];
+      coverLetter?: Express.Multer.File[];
       supportingDocuments?: Express.Multer.File[];
     },
     @Req() req: AuthenticatedRequest,
   ) {
     const cv = files?.cv?.[0];
+    const coverLetter = files?.coverLetter?.[0];
     return this.applicationsService.create(
       dto,
       req.user.sub,
       cv,
       files?.supportingDocuments ?? [],
+      coverLetter,
     );
   }
 
@@ -332,17 +342,46 @@ export class ApplicationsController {
   @Patch(':id')
   @Roles('job_seeker')
   @ApiOperation({
-    summary: 'Update your cover letter before employer review',
+    summary: 'Replace your cover-letter file before employer review',
   })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['coverLetter'],
+      properties: {
+        coverLetter: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('coverLetter', {
+      storage: diskStorage({
+        destination: (_req, _file, callback) =>
+          callback(null, uploadDirectory),
+        filename: (_req, file, callback) =>
+          callback(
+            null,
+            `${randomUUID()}${extname(file.originalname).toLowerCase()}`,
+          ),
+      }),
+      limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+      fileFilter,
+    }),
+    new CleanupUploadsOnErrorInterceptor(),
+  )
   update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() updateApplicationDto: UpdateApplicationDto,
+    @UploadedFile() coverLetter: Express.Multer.File,
     @Req() req: AuthenticatedRequest,
   ) {
     return this.applicationsService.update(
       id,
       req.user.sub,
-      updateApplicationDto,
+      coverLetter,
     );
   }
 

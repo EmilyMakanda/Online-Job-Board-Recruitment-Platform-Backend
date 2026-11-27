@@ -159,4 +159,78 @@ describe('ApplicationsService job-specific requirements', () => {
     );
     expect(applicationRepository.manager.transaction).not.toHaveBeenCalled();
   });
+
+  it('requires a cover-letter file when the job marks it as required', async () => {
+    jobService.getOneJob.mockResolvedValue({
+      id: 'job-id',
+      title: 'Engineer',
+      status: JobStatus.APPROVED,
+      applicationRequirements: [
+        {
+          fieldKey: 'coverLetter',
+          fieldLabel: 'Cover Letter',
+          isEnabled: 1,
+          isRequired: 1,
+        },
+      ],
+    } as Job);
+
+    await expect(service.create({ jobId: 'job-id' }, 7)).rejects.toThrow(
+      'Cover Letter is required for this application.',
+    );
+    expect(applicationRepository.manager.transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects answers for fields disabled on the job', async () => {
+    jobService.getOneJob.mockResolvedValue({
+      id: 'job-id',
+      title: 'Engineer',
+      status: JobStatus.APPROVED,
+      applicationRequirements: [
+        {
+          fieldKey: 'highestEducation',
+          fieldLabel: 'Highest Education',
+          isEnabled: 0,
+          isRequired: 0,
+        },
+      ],
+    } as Job);
+
+    await expect(
+      service.create(
+        { jobId: 'job-id', highestEducation: "Bachelor's degree" },
+        7,
+      ),
+    ).rejects.toThrow('This job does not accept the "highestEducation" field.');
+    expect(applicationRepository.manager.transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects a cover-letter file when the job disables that field', async () => {
+    jobService.getOneJob.mockResolvedValue({
+      id: 'job-id',
+      title: 'Engineer',
+      status: JobStatus.APPROVED,
+      applicationRequirements: [
+        {
+          fieldKey: 'coverLetter',
+          fieldLabel: 'Cover Letter',
+          isEnabled: 0,
+          isRequired: 0,
+        },
+      ],
+    } as Job);
+    const coverLetter = {
+      originalname: 'cover-letter.pdf',
+      path: '/tmp/cover-letter.pdf',
+      mimetype: 'application/pdf',
+      size: 12,
+    } as Express.Multer.File;
+
+    await expect(
+      service.create({ jobId: 'job-id' }, 7, undefined, [], coverLetter),
+    ).rejects.toThrow(
+      'This job does not accept a cover-letter document.',
+    );
+    expect(applicationRepository.manager.transaction).not.toHaveBeenCalled();
+  });
 });

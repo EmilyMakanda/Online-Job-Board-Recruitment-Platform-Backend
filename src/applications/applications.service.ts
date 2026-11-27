@@ -32,7 +32,6 @@ import {
   removeApplicationFiles,
 } from './application-file-storage.js';
 import { CreateApplicationDto } from './dto/create-application.dto.js';
-import type { UpdateApplicationDto } from './dto/update-application.dto.js';
 import type { UpdateApplicationStatusDto } from './dto/update-application-status.dto.js';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -49,7 +48,6 @@ const APPLICATION_ANSWER_KEYS = [
   'portfolioUrl',
   'linkedinUrl',
   'additionalAnswers',
-  'coverLetter',
 ] as const;
 const ALLOWED_FILE_TYPES = new Map([
   ['.pdf', 'application/pdf'],
@@ -123,8 +121,9 @@ export class ApplicationsService {
     jobSeekerId: number,
     cv?: Express.Multer.File,
     supportingFiles: Express.Multer.File[] = [],
+    coverLetterFile?: Express.Multer.File,
   ) {
-    const uploadedFiles = [cv, ...supportingFiles].filter(
+    const uploadedFiles = [cv, coverLetterFile, ...supportingFiles].filter(
       (file): file is Express.Multer.File => file !== undefined,
     );
     let job: Job;
@@ -156,7 +155,9 @@ export class ApplicationsService {
         const answer =
           requirement.fieldKey === 'cv'
             ? cv
-            : dto[requirement.fieldKey as keyof CreateApplicationDto];
+            : requirement.fieldKey === 'coverLetter'
+              ? coverLetterFile
+              : dto[requirement.fieldKey as keyof CreateApplicationDto];
         if (
           answer === undefined ||
           answer === null ||
@@ -173,20 +174,34 @@ export class ApplicationsService {
           .filter((requirement) => requirement.isEnabled === 1)
           .map(({ fieldKey }) => fieldKey),
       );
+      for (const key of APPLICATION_ANSWER_KEYS) {
+        const answer = dto[key];
+        if (
+          answer !== undefined &&
+          answer !== null &&
+          !(typeof answer === 'string' && !answer.trim()) &&
+          !enabledKeys.has(key)
+        ) {
+          throw new BadRequestException(
+            `This job does not accept the "${key}" field.`,
+          );
+        }
+      }
       if (cv && !enabledKeys.has('cv')) {
         throw new BadRequestException(
           'This job does not accept a CV document.',
+        );
+      }
+      if (coverLetterFile && !enabledKeys.has('coverLetter')) {
+        throw new BadRequestException(
+          'This job does not accept a cover-letter document.',
         );
       }
 
       const answers: Record<string, string | number | boolean> = {};
       for (const key of APPLICATION_ANSWER_KEYS) {
         const value = dto[key];
-        if (
-          enabledKeys.has(key) &&
-          value !== undefined &&
-          key !== 'coverLetter'
-        ) {
+        if (enabledKeys.has(key) && value !== undefined) {
           answers[key] = value;
         }
       }
@@ -211,9 +226,7 @@ export class ApplicationsService {
           const application = applications.create({
             job,
             jobSeekerId,
-            coverLetter: enabledKeys.has('coverLetter')
-              ? dto.coverLetter?.trim() || null
-              : null,
+            coverLetter: null,
             answers: JSON.stringify(answers),
             status: ApplicationStatus.SUBMITTED,
           });
@@ -229,6 +242,15 @@ export class ApplicationsService {
                   ),
                 ]
               : []),
+              ...(coverLetterFile && enabledKeys.has('coverLetter')
+                ? [
+                    this.createDocumentRecord(
+                      coverLetterFile,
+                      saved,
+                      ApplicationDocumentType.COVER_LETTER,
+                    ),
+                  ]
+                : []),
             ...supportingFiles.map((file) =>
               this.createDocumentRecord(
                 file,
@@ -431,40 +453,85 @@ export class ApplicationsService {
   async update(
     applicationId: number,
     jobSeekerId: number,
-    dto: UpdateApplicationDto,
+    coverLetterFile: Express.Multer.File,
   ) {
-    const coverLetter = dto.coverLetter;
-    if (typeof coverLetter !== 'string' || !coverLetter.trim()) {
+    if (!coverLetterFile) {
       throw new BadRequestException(
-        'A non-empty cover letter is required when updating an application.',
+        'A cover-letter document is required when updating an application.',
       );
     }
 
-    return this.applicationRepository.manager.transaction(async (manager) => {
-      const applications = manager.getRepository(Application);
-      const lockedApplication = await applications.findOne({
-        where: { applicationId, jobSeekerId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (!lockedApplication) {
-        throw new NotFoundException('Application not found.');
-      }
-      const application = await applications.findOne({
-        where: { applicationId, jobSeekerId },
-        relations: { job: true, documents: true },
-      });
-      if (!application) {
-        throw new NotFoundException('Application not found.');
-      }
-      if (application.status !== ApplicationStatus.SUBMITTED) {
-        throw new BadRequestException(
-          'A cover letter can only be edited before an employer reviews the application.',
-        );
-      }
+    const replacedDocuments = await this.applicationRepository.manager
+      .transaction(async (manager) => {
+        const applications = manager.getRepository(Application);
+        const documents = manager.getRepository(ApplicationDocument);
+        const lockedApplication = await applications.findOne({
+          where: { applicationId, jobSeekerId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!lockedApplication) {
+          throw new NotFoundException('Application not found.');
+        }
+        const application = await applications.findOne({
+          where: { applicationId, jobSeekerId },
+          relations: {
+            job: { applicationRequirements: true },
+            documents: true,
+          },
+        });
+        if (!application) {
+          throw new NotFoundException('Application not found.');
+        }
+        if (application.status !== ApplicationStatus.SUBMITTED) {
+          throw new BadRequestException(
+            'A cover letter can only be edited before an employer reviews the application.',
+          );
+        }
+        if (
+          !application.job.applicationRequirements?.some(
+            (requirement) =>
+              requirement.fieldKey === 'coverLetter' &&
+              requirement.isEnabled === 1,
+          )
+        ) {
+          throw new BadRequestException(
+            'This job does not accept a cover-letter document.',
+          );
+        }
 
-      application.coverLetter = coverLetter.trim();
-      return this.presentApplication(await applications.save(application));
-    });
+        this.validateUploadedFile(coverLetterFile);
+        const previousCoverLetters = (application.documents ?? []).filter(
+          ({ documentType }) =>
+            documentType === ApplicationDocumentType.COVER_LETTER,
+        );
+        const retainedDocuments = (application.documents ?? []).filter(
+          ({ documentType }) =>
+            documentType !== ApplicationDocumentType.COVER_LETTER,
+        );
+        const newCoverLetter = await documents.save(
+          this.createDocumentRecord(
+            coverLetterFile,
+            application,
+            ApplicationDocumentType.COVER_LETTER,
+          ),
+        );
+
+        application.coverLetter = null;
+        application.documents = [...retainedDocuments, newCoverLetter];
+        await applications.save(application);
+        if (previousCoverLetters.length > 0) {
+          await documents.remove(previousCoverLetters);
+        }
+
+        return previousCoverLetters;
+      })
+      .catch((error: unknown) => {
+        this.removeUploadedFiles([coverLetterFile]);
+        throw error;
+      });
+
+    this.removeStoredFiles(replacedDocuments);
+    return this.findOne(applicationId, jobSeekerId);
   }
 
   async updateStatus(

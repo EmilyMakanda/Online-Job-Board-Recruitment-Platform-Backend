@@ -96,12 +96,18 @@ An employer may publish a job immediately once their company has been verified
 by an administrator. No separate per-job admin approval is required.
 
 Employers can include an `applicationRequirements` array when creating a job.
-Each item has a supported `fieldKey`, employer-facing `fieldLabel`, and
-`isEnabled`/`isRequired` flags. The default remains a required CV when the
-array is omitted. Job responses expose these settings so the application form
-can render the selected fields; application submissions are checked against
-required fields and selected answers are stored with the application. Before
-deploying with synchronization disabled, run
+Each item has a supported `fieldKey` and `isEnabled`/`isRequired` flags; the
+backend supplies the canonical `fieldLabel`. The default remains a required CV
+when the array is omitted.
+
+Before displaying an application form, a job-seeker client can request
+`GET /api/v1/job/{jobID}/application-fields` with its access token. The response
+contains only enabled fields, with an `inputType` and boolean `isRequired`
+flag. Render those fields accordingly and mark inputs with `isRequired: true`
+as mandatory. CVs and cover letters are PDF/TXT uploads; the cover letter is
+submitted as the binary `coverLetter` multipart field. Application submissions
+are checked against the job's requirements, and answers for disabled fields
+are rejected. Before deploying with synchronization disabled, run
 `src/database/migrations/20261125100000-JobApplicationRequirements.ts` using
 `npm run migration:run`. The migration also marks CV as required and cover
 letter as optional for existing jobs.

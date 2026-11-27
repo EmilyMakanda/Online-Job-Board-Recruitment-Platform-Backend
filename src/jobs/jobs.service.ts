@@ -15,6 +15,7 @@ import {
 } from './dto/create-job.dto.js';
 import {
   APPLICATION_FIELD_KEYS,
+  AVAILABLE_APPLICATION_FIELDS,
   getApplicationFieldLabel,
   type ApplicationFieldKey,
 } from '../applications/application-fields.js';
@@ -252,20 +253,20 @@ export class JobService {
     return paginated(result, pagination);
   }
 
-  async searchJobsByName(
-    name: string,
+  async searchJobs(
+    searchTerm: string | undefined,
     location?: string,
     pagination = new PaginationQueryDto(),
   ) {
-    const normalizedName = name?.trim();
+    const normalizedSearchTerm = searchTerm?.trim();
     const normalizedLocation = location?.trim();
 
-    if (!normalizedName && !normalizedLocation) {
+    if (!normalizedSearchTerm && !normalizedLocation) {
       throw new BadRequestException('A search term or location is required.');
     }
 
     if (
-      (normalizedName && normalizedName.length > 100) ||
+      (normalizedSearchTerm && normalizedSearchTerm.length > 100) ||
       (normalizedLocation && normalizedLocation.length > 100)
     ) {
       throw new BadRequestException('Search filters are too long.');
@@ -284,10 +285,10 @@ export class JobService {
         companyStatus: VerificationStatus.VERIFIED,
       });
 
-    if (normalizedName) {
+    if (normalizedSearchTerm) {
       query.andWhere(
         '(LOWER(job.title) LIKE LOWER(:term) OR LOWER(job.description) LIKE LOWER(:term) OR LOWER(job.location) LIKE LOWER(:term))',
-        { term: `%${normalizedName}%` },
+        { term: `%${normalizedSearchTerm}%` },
       );
     }
 
@@ -322,6 +323,35 @@ export class JobService {
     }
 
     return job;
+  }
+
+  async getApplicationFieldsForJob(jobId: string) {
+    const job = await this.getOneJob(jobId);
+    const requirements = new Map(
+      (job.applicationRequirements ?? []).map((requirement) => [
+        requirement.fieldKey,
+        requirement,
+      ]),
+    );
+
+    return {
+      jobId: job.id,
+      fields: AVAILABLE_APPLICATION_FIELDS.flatMap((field) => {
+        const requirement = requirements.get(field.fieldKey);
+        if (!requirement || requirement.isEnabled !== 1) {
+          return [];
+        }
+
+        return [
+          {
+            fieldKey: field.fieldKey,
+            fieldLabel: requirement.fieldLabel,
+            inputType: field.inputType,
+            isRequired: requirement.isRequired === 1,
+          },
+        ];
+      }),
+    };
   }
 
   // Automatically closes expired approved jobs.

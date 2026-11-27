@@ -16,11 +16,13 @@ import {
 import type { Request } from 'express';
 import { JobService } from './jobs.service.js';
 import { CreateJobDto } from './dto/create-job.dto.js';
+import { SearchJobsQueryDto } from './dto/search-jobs-query.dto.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -122,16 +124,41 @@ export class JobController {
   @ApiOperation({
     summary: 'Search available job listings by title, description, or location',
   })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    type: String,
+    description: 'Search job title, description, or location.',
+  })
+  @ApiQuery({
+    name: 'location',
+    required: false,
+    type: String,
+    description: 'Optional location filter.',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    minimum: 1,
+    maximum: 1_000_000,
+    description: '1-based page number.',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    minimum: 1,
+    maximum: 100,
+    description: 'Maximum number of results to return.',
+  })
   searchJobs(
-    @Query('q') query: string,
-    @Query('name') legacyName: string,
-    @Query('location') location: string,
-    @Query() pagination: PaginationQueryDto,
+    @Query() query: SearchJobsQueryDto,
   ) {
-    return this.jobService.searchJobsByName(
-      query?.trim() || legacyName,
-      location,
-      pagination,
+    return this.jobService.searchJobs(
+      query.q,
+      query.location,
+      query,
     );
   }
 
@@ -164,6 +191,41 @@ export class JobController {
     return req.user.role === 'employer'
       ? this.jobService.getOneJobForEmployer(jobID, req.user.sub)
       : this.jobService.getOneJob(jobID);
+  }
+
+  @Get(':jobID/application-fields')
+  @ApiBearerAuth()
+  @Roles('job_seeker')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiOperation({
+    summary: 'List enabled application fields for a job, including which are required',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Only enabled application fields are returned. Use isRequired to mark mandatory inputs.',
+    schema: {
+      example: {
+        jobId: '42f83d15-c798-4a46-9e83-d0fdb60a5e15',
+        fields: [
+          {
+            fieldKey: 'cv',
+            fieldLabel: 'CV / Resume',
+            inputType: 'file',
+            isRequired: true,
+          },
+          {
+            fieldKey: 'coverLetter',
+            fieldLabel: 'Cover Letter',
+            inputType: 'file',
+            isRequired: false,
+          },
+        ],
+      },
+    },
+  })
+  getApplicationFieldsForJob(@Param('jobID') jobID: string) {
+    return this.jobService.getApplicationFieldsForJob(jobID);
   }
 
   @Patch(':jobID')

@@ -121,13 +121,4 @@ export class CreateApplicationDto {
   @IsString()
   additionalAnswers?: string;
 
-  @ApiPropertyOptional({
-    description: 'Cover letter text',
-    example: 'I am interested in this position because...',
-    maxLength: 2000,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  coverLetter?: string;
 }

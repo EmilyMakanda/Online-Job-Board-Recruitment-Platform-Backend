@@ -123,20 +123,35 @@ describe('ApplicationsService', () => {
       mimetype: 'application/pdf',
       size: 10,
     } as Express.Multer.File;
+    const coverLetter = {
+      originalname: 'cover-letter.pdf',
+      path: '/tmp/cover-letter-uuid.pdf',
+      mimetype: 'application/pdf',
+      size: 12,
+    } as Express.Multer.File;
     jobService.getOneJob.mockResolvedValue(job);
     applicationRepository.save.mockResolvedValue(application);
     applicationRepository.findOne.mockResolvedValue(null);
 
     await expect(
       service.create(
-        { jobId: job.id, coverLetter: ' Interested in the role. ' },
+        { jobId: job.id },
         7,
         cv,
+        [],
+        coverLetter,
       ),
     ).resolves.toMatchObject({
       applicationId: 5,
       status: ApplicationStatus.SUBMITTED,
-      documents: [expect.objectContaining({ documentType: ApplicationDocumentType.CV })],
+      documents: [
+        expect.objectContaining({
+          documentType: ApplicationDocumentType.CV,
+        }),
+        expect.objectContaining({
+          documentType: ApplicationDocumentType.COVER_LETTER,
+        }),
+      ],
     });
 
     expect(jobService.getOneJob).toHaveBeenCalledWith(job.id);
@@ -144,7 +159,7 @@ describe('ApplicationsService', () => {
     expect(applicationRepository.create).toHaveBeenCalledWith({
       job,
       jobSeekerId: 7,
-      coverLetter: 'Interested in the role.',
+      coverLetter: null,
       answers: '{}',
       status: expect.any(String),
     });
@@ -153,6 +168,13 @@ describe('ApplicationsService', () => {
         applicationId: 5,
         documentType: ApplicationDocumentType.CV,
         storedName: 'cv-uuid.pdf',
+      }),
+    );
+    expect(documentRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        applicationId: 5,
+        documentType: ApplicationDocumentType.COVER_LETTER,
+        storedName: 'cover-letter-uuid.pdf',
       }),
     );
     expect(notificationsService.create).toHaveBeenCalledWith({
@@ -250,16 +272,68 @@ describe('ApplicationsService', () => {
       answers: null,
       appliedAt: new Date(),
       updatedAt: new Date(),
-      job: { id: 'job-uuid' } as Job,
+      job: {
+        id: 'job-uuid',
+        applicationRequirements: [
+          {
+            fieldKey: 'coverLetter',
+            isEnabled: 1,
+            isRequired: 0,
+          },
+        ],
+      } as Job,
       documents: [],
     } as Application;
     applicationRepository.findOne.mockResolvedValue(application);
 
-    await service.update(5, 7, { coverLetter: ' New letter ' });
+    const coverLetter = {
+      originalname: 'new-cover-letter.pdf',
+      path: '/tmp/new-cover-letter.pdf',
+      mimetype: 'application/pdf',
+      size: 12,
+    } as Express.Multer.File;
+    await service.update(5, 7, coverLetter);
 
-    expect(application.coverLetter).toBe('New letter');
+    expect(application.coverLetter).toBeNull();
+    expect(documentRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentType: ApplicationDocumentType.COVER_LETTER,
+        storedName: 'new-cover-letter.pdf',
+      }),
+    );
     expect(application.status).toBe(ApplicationStatus.SUBMITTED);
     expect(applicationRepository.save).toHaveBeenCalledWith(application);
+  });
+
+  it('does not allow adding a cover letter when the job disabled that field', async () => {
+    applicationRepository.findOne.mockResolvedValue({
+      applicationId: 5,
+      jobSeekerId: 7,
+      status: ApplicationStatus.SUBMITTED,
+      job: {
+        id: 'job-uuid',
+        applicationRequirements: [
+          {
+            fieldKey: 'coverLetter',
+            isEnabled: 0,
+            isRequired: 0,
+          },
+        ],
+      },
+      documents: [],
+    });
+
+    const coverLetter = {
+      originalname: 'new-cover-letter.pdf',
+      path: '/tmp/new-cover-letter.pdf',
+      mimetype: 'application/pdf',
+      size: 12,
+    } as Express.Multer.File;
+
+    await expect(service.update(5, 7, coverLetter)).rejects.toThrow(
+      'This job does not accept a cover-letter document.',
+    );
+    expect(applicationRepository.save).not.toHaveBeenCalled();
   });
 
   it('allows only valid employer status transitions for the employer’s own job', async () => {

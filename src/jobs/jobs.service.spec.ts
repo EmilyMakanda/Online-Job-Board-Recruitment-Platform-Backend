@@ -264,6 +264,52 @@ describe('JobService', () => {
     });
   });
 
+  it('returns only enabled job application fields with boolean required flags', async () => {
+    jobRepository.findOne.mockResolvedValue({
+      id: 'job-id',
+      applicationRequirements: [
+        {
+          fieldKey: 'highestEducation',
+          fieldLabel: 'Highest Education',
+          isEnabled: 1,
+          isRequired: 1,
+        },
+        {
+          fieldKey: 'coverLetter',
+          fieldLabel: 'Cover Letter',
+          isEnabled: 1,
+          isRequired: 0,
+        },
+        {
+          fieldKey: 'cv',
+          fieldLabel: 'CV / Resume',
+          isEnabled: 0,
+          isRequired: 0,
+        },
+      ],
+    });
+
+    await expect(service.getApplicationFieldsForJob('job-id')).resolves.toEqual(
+      {
+        jobId: 'job-id',
+        fields: [
+          {
+            fieldKey: 'coverLetter',
+            fieldLabel: 'Cover Letter',
+            inputType: 'file',
+            isRequired: false,
+          },
+          {
+            fieldKey: 'highestEducation',
+            fieldLabel: 'Highest Education',
+            inputType: 'text',
+            isRequired: true,
+          },
+        ],
+      },
+    );
+  });
+
   it('searches approved jobs by title, description, or location without regard to case', async () => {
     const jobs = [{ id: 'job-id' }] as Job[];
     const queryBuilder = {
@@ -278,7 +324,7 @@ describe('JobService', () => {
     jobRepository.createQueryBuilder.mockReturnValue(queryBuilder);
 
     await expect(
-      service.searchJobsByName('Engineer', undefined),
+      service.searchJobs('Engineer', undefined),
     ).resolves.toMatchObject({ items: jobs, total: 1 });
     expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
       'job.company',
@@ -308,7 +354,7 @@ describe('JobService', () => {
   });
 
   it('requires a non-empty search query', async () => {
-    await expect(service.searchJobsByName('   ')).rejects.toBeInstanceOf(
+    await expect(service.searchJobs('   ')).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });
