@@ -1,4 +1,11 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -7,6 +14,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import type { Request } from 'express';
 
 import { AuthenticationService } from './authentication.service.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
@@ -14,6 +23,13 @@ import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { VerifyEmailDto } from './dto/verify-email.dto.js';
 import { ResendVerificationDto } from './dto/resend-verification.dto.js';
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
+
+interface AuthenticatedRequest extends Request {
+  user: { sub: number };
+}
 
 @ApiTags('authentication')
 @Controller('authentication')
@@ -22,6 +38,7 @@ export class AuthenticationController {
 
   // Register a new user
   @Post('register')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Register a new account' })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({
@@ -42,6 +59,7 @@ export class AuthenticationController {
   }
 
   @Post('register/employer')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Register an employer account',
     description:
@@ -67,6 +85,7 @@ export class AuthenticationController {
 
   // Verify the user's email address
   @Post('verify-email')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Verify an account email address' })
   @ApiBody({ type: VerifyEmailDto })
   @ApiResponse({ status: 200, description: 'Email verified successfully.' })
@@ -77,6 +96,7 @@ export class AuthenticationController {
 
   // Resend the email verification link
   @Post('resend-verification')
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @ApiOperation({ summary: 'Resend an account verification code' })
   @ApiBody({ type: ResendVerificationDto })
   @ApiResponse({
@@ -90,6 +110,7 @@ export class AuthenticationController {
 
   // Log in an existing user
   @Post('login')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Log in and obtain a JWT access token' })
   @ApiBody({ type: LoginDto })
   @ApiResponse({
@@ -105,8 +126,42 @@ export class AuthenticationController {
     return this.authenticationService.login(loginDto);
   }
 
+  @Post('password/forgot')
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Request a password reset email' })
+  @ApiBody({ type: ForgotPasswordDto })
+  requestPasswordReset(@Body() dto: ForgotPasswordDto) {
+    return this.authenticationService.requestPasswordReset(dto.email);
+  }
+
+  @Post('password/reset')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Reset a password with a one-time email token' })
+  @ApiBody({ type: ResetPasswordDto })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authenticationService.resetPassword(dto.token, dto.password);
+  }
+
+  @Patch('password')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Change the authenticated user password' })
+  @ApiBody({ type: ChangePasswordDto })
+  changePassword(
+    @Body() dto: ChangePasswordDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.authenticationService.changePassword(
+      req.user.sub,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+  }
+
   @Post('logout')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiBearerAuth()
   @ApiHeader({
     name: 'Authorization',
@@ -118,10 +173,10 @@ export class AuthenticationController {
   @ApiResponse({
     status: 200,
     description:
-      'Logout successful. The client should discard its access token.',
+      'Logout successful. All access tokens issued before logout are revoked.',
     schema: {
       example: {
-        message: 'Logout successful. Please discard your access token.',
+        message: 'Logout successful. All active access tokens were revoked.',
       },
     },
   })
@@ -129,9 +184,7 @@ export class AuthenticationController {
     status: 401,
     description: 'A valid access token is required.',
   })
-  logout() {
-    return {
-      message: 'Logout successful. Please discard your access token.',
-    };
+  logout(@Req() req: AuthenticatedRequest) {
+    return this.authenticationService.logout(req.user.sub);
   }
 }

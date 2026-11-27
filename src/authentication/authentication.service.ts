@@ -9,12 +9,11 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 
 import * as bcrypt from 'bcrypt';
-import { createHash, randomInt } from 'node:crypto';
-import nodemailer from 'nodemailer';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 
+import { EmailService } from '../email/email.service.js';
 import { User } from './entities/user.entity.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
@@ -29,7 +28,7 @@ export class AuthenticationService {
     private readonly userRepository: Repository<User>,
 
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
   ) {}
 
   // Hash the OTP before storing it in Oracle.
@@ -42,77 +41,16 @@ export class AuthenticationService {
     return randomInt(0, 1_000_000).toString().padStart(6, '0');
   }
 
-  // SMTP credentials are preferred; Gmail OAuth 2.0 remains supported.
-  private createEmailTransporter() {
-    const user = this.configService.get<string>('SMTP_USER');
-    const password = this.configService.get<string>('SMTP_PASSWORD');
-    const clientId = this.configService.get<string>('SMTP_CLIENT_ID');
-    const clientSecret = this.configService.get<string>('SMTP_CLIENT_SECRET');
-    const refreshToken = this.configService.get<string>('SMTP_REFRESH_TOKEN');
-    const host = this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com');
-    const port = Number(this.configService.get<string>('SMTP_PORT') ?? 465);
-    const secureSetting = this.configService.get<string>('SMTP_SECURE');
-    const secure =
-      secureSetting === undefined
-        ? port === 465
-        : secureSetting.toLowerCase() === 'true';
-
-    if (!user) {
-      throw new Error(
-        'SMTP configuration is missing. Set SMTP_USER and SMTP_PASSWORD or configure Gmail OAuth.',
-      );
-    }
-
-    if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      throw new Error('SMTP_PORT must be a valid port number.');
-    }
-
-    const auth = password
-      ? { user, pass: password }
-      : clientId && clientSecret && refreshToken
-        ? {
-            type: 'OAuth2' as const,
-            user,
-            clientId,
-            clientSecret,
-            refreshToken,
-          }
-        : undefined;
-
-    if (!auth) {
-      throw new Error(
-        'SMTP credentials are incomplete. Set SMTP_PASSWORD or SMTP_CLIENT_ID, SMTP_CLIENT_SECRET and SMTP_REFRESH_TOKEN.',
-      );
-    }
-
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth,
-    });
-  }
-
   // Send the six-digit OTP to the user's email address.
   private async sendVerificationEmail(
     email: string,
     otp: string,
   ): Promise<boolean> {
-    let transporter: ReturnType<typeof nodemailer.createTransport> | undefined;
-
     try {
-      transporter = this.createEmailTransporter();
-
-      const sender =
-        this.configService.get<string>('SMTP_FROM') ??
-        this.configService.get<string>('SMTP_USER');
-
-      await transporter.sendMail({
-        from: sender,
-        to: email,
-        subject: 'Your Job Board Verification Code',
-
-        text: [
+      await this.emailService.sendEmail(
+        email,
+        'Your Job Board Verification Code',
+        [
           'Welcome to Online Job Board!',
           '',
           `Your six-digit verification code is: ${otp}`,
@@ -120,8 +58,7 @@ export class AuthenticationService {
           'This code expires in 10 minutes.',
           'If you did not create this account, you can ignore this email.',
         ].join('\n'),
-
-        html: `
+        `
           <h2>Welcome to Online Job Board!</h2>
           <p>Thank you for registering.</p>
           <p>Enter this six-digit code to verify your email:</p>
@@ -129,7 +66,7 @@ export class AuthenticationService {
           <p>This code expires in 10 minutes.</p>
           <p>If you did not create this account, ignore this email.</p>
         `,
-      });
+      );
 
       return true;
     } catch (error) {
@@ -137,8 +74,6 @@ export class AuthenticationService {
 
       this.logger.error(`Failed to send verification OTP: ${message}`);
       return false;
-    } finally {
-      transporter?.close();
     }
   }
 
@@ -170,6 +105,11 @@ export class AuthenticationService {
     if (password.length < 8) {
       throw new BadRequestException(
         'Password must contain at least 8 characters.',
+      );
+    }
+    if (Buffer.byteLength(password, 'utf8') > 72) {
+      throw new BadRequestException(
+        'Password must not exceed 72 UTF-8 bytes.',
       );
     }
 
@@ -294,6 +234,109 @@ export class AuthenticationService {
     };
   }
 
+  async requestPasswordReset(emailInput: string) {
+    const email = emailInput?.trim().toLowerCase();
+    if (!email) {
+      throw new BadRequestException('Email is required.');
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { email, isActive: 1 },
+      select: { id: true, email: true, isActive: true },
+    });
+
+    if (user) {
+      const token = randomBytes(32).toString('hex');
+      user.passwordResetTokenHash = this.hashToken(token);
+      user.passwordResetTokenExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      await this.userRepository.save(user);
+
+      try {
+        await this.emailService.sendEmail(
+          user.email,
+          'Reset your Job Board password',
+          `Use this one-time password reset token within one hour:\n\n${token}`,
+          `<p>Use this one-time password reset token within one hour:</p><p><code>${token}</code></p>`,
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.error(`Failed to send password reset email: ${message}`);
+      }
+    }
+
+    return {
+      message:
+        'If an active account exists for that email, password reset instructions will be sent.',
+    };
+  }
+
+  async resetPassword(token: string, password: string) {
+    if (Buffer.byteLength(password, 'utf8') > 72) {
+      throw new BadRequestException(
+        'Password must not exceed 72 UTF-8 bytes.',
+      );
+    }
+
+    return this.userRepository.manager.transaction(async (manager) => {
+      const users = manager.getRepository(User);
+      const user = await users
+        .createQueryBuilder('user')
+        .addSelect('user.passwordResetTokenHash')
+        .addSelect('user.passwordResetTokenExpiresAt')
+        .where('user.passwordResetTokenHash = :tokenHash', {
+          tokenHash: this.hashToken(token),
+        })
+        .andWhere('user.passwordResetTokenExpiresAt > :now', {
+          now: new Date(),
+        })
+        .setLock('pessimistic_write')
+        .getOne();
+
+      if (!user) {
+        throw new BadRequestException(
+          'The password reset token is invalid or expired.',
+        );
+      }
+
+      user.password = await bcrypt.hash(password, 12);
+      user.passwordResetTokenHash = null;
+      user.passwordResetTokenExpiresAt = null;
+      user.tokenVersion += 1;
+      await users.save(user);
+
+      return { message: 'Password reset successfully. Please log in again.' };
+    });
+  }
+
+  async changePassword(userId: number, currentPassword: string, newPassword: string) {
+    if (Buffer.byteLength(newPassword, 'utf8') > 72) {
+      throw new BadRequestException(
+        'Password must not exceed 72 UTF-8 bytes.',
+      );
+    }
+
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.id = :userId', { userId })
+      .getOne();
+
+    if (!user) {
+      throw new UnauthorizedException('Account no longer exists.');
+    }
+    if (!(await bcrypt.compare(currentPassword, user.password))) {
+      throw new UnauthorizedException('Current password is incorrect.');
+    }
+
+    user.password = await bcrypt.hash(newPassword, 12);
+    user.passwordResetTokenHash = null;
+    user.passwordResetTokenExpiresAt = null;
+    user.tokenVersion += 1;
+    await this.userRepository.save(user);
+
+    return { message: 'Password changed. Please log in again.' };
+  }
+
   // Log in only after the email has been verified.
   async login(dto: LoginDto) {
     const email = dto.email?.trim().toLowerCase();
@@ -301,6 +344,9 @@ export class AuthenticationService {
 
     if (!email || !password) {
       throw new BadRequestException('Email and password are required.');
+    }
+    if (Buffer.byteLength(password, 'utf8') > 72) {
+      throw new UnauthorizedException('Invalid email or password.');
     }
 
     // Explicitly select the password because the entity excludes it by default.
@@ -336,6 +382,7 @@ export class AuthenticationService {
       sub: user.id,
       email: user.email,
       role: user.role,
+      tokenVersion: user.tokenVersion,
     });
 
     return {
@@ -348,6 +395,21 @@ export class AuthenticationService {
         role: user.role,
         isEmailVerified: true,
       },
+    };
+  }
+
+  async logout(userId: number) {
+    const result = await this.userRepository.increment(
+      { id: userId },
+      'tokenVersion',
+      1,
+    );
+    if (!result.affected) {
+      throw new UnauthorizedException('Account no longer exists.');
+    }
+
+    return {
+      message: 'Logout successful. All active access tokens were revoked.',
     };
   }
 }

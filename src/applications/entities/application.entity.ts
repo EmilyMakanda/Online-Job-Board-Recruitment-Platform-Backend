@@ -56,6 +56,13 @@ export class Application {
   })
   coverLetter: string | null;
 
+  @Column({
+    name: 'APPLICATION_ANSWERS',
+    type: 'clob',
+    nullable: true,
+  })
+  answers: string | null;
+
   @CreateDateColumn({
     name: 'APPLIED_AT',
     type: 'timestamp',

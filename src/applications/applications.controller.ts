@@ -14,6 +14,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UploadedFiles,
@@ -25,7 +26,7 @@ import {
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { randomUUID } from 'node:crypto';
-import { extname, join } from 'node:path';
+import { extname } from 'node:path';
 import { existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import type { Request, Response, Express } from 'express';
 import { catchError, throwError } from 'rxjs';
@@ -43,6 +44,8 @@ import { UpdateApplicationStatusDto } from './dto/update-application-status.dto.
 import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../authentication/guards/roles.guards.js';
 import { Roles } from '../authentication/roles.decorator.js';
+import { APPLICATION_UPLOAD_DIR } from './application-file-storage.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -51,7 +54,7 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
-const uploadDirectory = join(process.cwd(), 'uploads', 'applications');
+const uploadDirectory = APPLICATION_UPLOAD_DIR;
 mkdirSync(uploadDirectory, { recursive: true });
 
 const allowedExtensions = new Set(['.pdf', '.txt']);
@@ -193,11 +196,16 @@ export class ApplicationsController {
           type: 'string',
           format: 'binary',
         },
+        supportingDocuments: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
       },
     },
-  },
-})
-
+  })
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -242,8 +250,11 @@ export class ApplicationsController {
   @Get()
   @Roles('job_seeker')
   @ApiOperation({ summary: 'View the authenticated jobseeker applications' })
-  findMine(@Req() req: AuthenticatedRequest) {
-    return this.applicationsService.findByJobSeeker(req.user.sub);
+  findMine(
+    @Req() req: AuthenticatedRequest,
+    @Query() pagination: PaginationQueryDto,
+  ) {
+    return this.applicationsService.findByJobSeeker(req.user.sub, pagination);
   }
 
   @Get('employer')
@@ -251,8 +262,11 @@ export class ApplicationsController {
   @ApiOperation({
     summary: 'View applications  submitted for jobs by this employer',
   })
-  findForEmployer(@Req() req: AuthenticatedRequest) {
-    return this.applicationsService.findByEmployer(req.user.sub);
+  findForEmployer(
+    @Req() req: AuthenticatedRequest,
+    @Query() pagination: PaginationQueryDto,
+  ) {
+    return this.applicationsService.findByEmployer(req.user.sub, pagination);
   }
 
   @Get('job-seeker/:jobSeekerId')
@@ -261,17 +275,22 @@ export class ApplicationsController {
     @Param('jobSeekerId', ParseIntPipe)
     jobSeekerId: number,
     @Req() req: AuthenticatedRequest,
+    @Query() pagination: PaginationQueryDto,
   ) {
     if (jobSeekerId !== req.user.sub) {
       throw new ForbiddenException('You can only view your own applications.');
     }
-    return this.applicationsService.findByJobSeeker(req.user.sub);
+    return this.applicationsService.findByJobSeeker(
+      req.user.sub,
+      pagination,
+    );
   }
 
-   @Get('documents/:documentId/download')
+  @Get('documents/:documentId/download')
   @Roles('job_seeker', 'employer')
   @ApiOperation({
-    summary: 'Download an application document if you are its applicant or the job owner',
+    summary:
+      'Download an application document if you are its applicant or the job owner',
   })
   async downloadDocument(
     @Param('documentId', ParseIntPipe)
@@ -281,19 +300,14 @@ export class ApplicationsController {
 
     @Res() res: Response,
   ) {
-    const document =
-      await this.applicationsService.getDocumentForUser(
-        documentId,
-        req.user.sub,
-        req.user.role,
-      );
-
-    return res.download(
-      document.filePath,
-      document.originalName,
+    const document = await this.applicationsService.getDocumentForUser(
+      documentId,
+      req.user.sub,
+      req.user.role,
     );
-  }
 
+    return res.download(document.filePath, document.originalName);
+  }
 
   @Get(':id')
   @Roles('job_seeker')

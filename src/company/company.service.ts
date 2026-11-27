@@ -7,15 +7,20 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 
-import { 
+import {
   Company,
   VerificationStatus,
- } from './entities/company.entity.js';
+} from './entities/company.entity.js';
 import { User } from '../authentication/entities/user.entity.js';
 import { CreateCompanyDto } from './dto/create-company.dto.js';
 import { UpdateCompanyDto } from './dto/update-company.dto.js';
+import { ApplicationDocument } from '../applications/entities/application-document.entity.js';
+import { removeApplicationFiles } from '../applications/application-file-storage.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { paginated, paginationOptions } from '../common/pagination.js';
+import { Job } from '../jobs/entities/jobs.entity.js';
 
 @Injectable()
 export class CompanyService {
@@ -25,13 +30,14 @@ export class CompanyService {
 
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(
     employerId: number,
     createCompanyDto: CreateCompanyDto,
   ): Promise<Company> {
-    // Check that the employer exists
+    // Check that the employer exists.
     const employer = await this.userRepository.findOneBy({
       id: employerId,
     });
@@ -40,7 +46,7 @@ export class CompanyService {
       throw new NotFoundException('Employer user does not exist');
     }
 
-    // Check whether this employer already owns a company
+    // Check whether this employer already owns a company.
     const existingCompany = await this.companyRepository.findOneBy({
       employerId,
     });
@@ -51,9 +57,12 @@ export class CompanyService {
       );
     }
 
-    // Check whether the registration number is already registered
+    // Normalize the registration number before checking for duplicates.
+    const registrationNumber =
+      createCompanyDto.registrationNumber.trim().toUpperCase();
+
     const existingRegistration = await this.companyRepository.findOneBy({
-      registrationNumber: createCompanyDto.registrationNumber,
+      registrationNumber,
     });
 
     if (existingRegistration) {
@@ -62,17 +71,22 @@ export class CompanyService {
       );
     }
 
-    // Create the company with pending verification status
+    // Create the company with pending verification status.
     const company = this.companyRepository.create({
       ...createCompanyDto,
+      registrationNumber,
       employerId,
     });
 
     return this.companyRepository.save(company);
   }
 
-  async findAll(): Promise<Company[]> {
-    return this.companyRepository.find();
+  async findAll(pagination: PaginationQueryDto) {
+    const result = await this.companyRepository.findAndCount({
+      order: { createdAt: 'DESC' },
+      ...paginationOptions(pagination),
+    });
+    return paginated(result, pagination);
   }
 
   async findOne(companyId: string): Promise<Company> {
@@ -96,14 +110,21 @@ export class CompanyService {
   ): Promise<Company> {
     const company = await this.findOne(companyId);
 
-    // Ensure the requester owns this company
+    // Ensure the requester owns this company.
     if (company.employerId !== requesterId) {
       throw new ForbiddenException(
         'You can only edit your own company',
       );
     }
 
-    // Apply only fields supplied in the update DTO
+    // Reject an empty update request.
+    if (Object.keys(updateCompanyDto).length === 0) {
+      throw new BadRequestException(
+        'Provide at least one field to update',
+      );
+    }
+
+    // Apply only fields supplied in the update DTO.
     const updates = Object.fromEntries(
       Object.entries(updateCompanyDto).filter(
         ([, value]) => value !== undefined,
@@ -115,56 +136,99 @@ export class CompanyService {
     return this.companyRepository.save(company);
   }
 
-  async findPendingCompanies(): Promise<Company[]> {
-  return this.companyRepository.find({
-    where: {
-      verificationStatus: VerificationStatus.PENDING,
-    },
-    order: {
-      createdAt: 'ASC',
-    },
-  });
-}
-
-async verifyCompany(companyId: string): Promise<Company> {
-  const company = await this.findOne(companyId);
-
-  if (company.verificationStatus === VerificationStatus.VERIFIED) {
-    throw new ConflictException('Company is already verified');
+  async findPendingCompanies(pagination: PaginationQueryDto) {
+    const result = await this.companyRepository.findAndCount({
+      where: {
+        verificationStatus: VerificationStatus.PENDING,
+      },
+      order: {
+        createdAt: 'ASC',
+      },
+      ...paginationOptions(pagination),
+    });
+    return paginated(result, pagination);
   }
 
-  company.verificationStatus = VerificationStatus.VERIFIED;
-  company.verifiedAt = new Date();
+  async verifyCompany(companyId: string): Promise<Company> {
+    const company = await this.findOne(companyId);
 
-  return this.companyRepository.save(company);
-}
+    // Only pending companies can be verified.
+    if (company.verificationStatus !== VerificationStatus.PENDING) {
+      throw new ConflictException(
+        'Only pending companies can be verified',
+      );
+    }
 
-async rejectCompany(companyId: string): Promise<Company> {
-  const company = await this.findOne(companyId);
+    company.verificationStatus = VerificationStatus.VERIFIED;
+    company.verifiedAt = new Date();
 
-  if (company.verificationStatus === VerificationStatus.REJECTED) {
-    throw new ConflictException('Company is already rejected');
+    return this.companyRepository.save(company);
   }
 
-  company.verificationStatus = VerificationStatus.REJECTED;
-  company.verifiedAt = null;
+  async rejectCompany(companyId: string): Promise<Company> {
+    const company = await this.findOne(companyId);
 
-  return this.companyRepository.save(company);
-}
+    // Only pending companies can be rejected.
+    if (company.verificationStatus !== VerificationStatus.PENDING) {
+      throw new ConflictException(
+        'Only pending companies can be rejected',
+      );
+    }
+
+    company.verificationStatus = VerificationStatus.REJECTED;
+    company.verifiedAt = null;
+
+    return this.companyRepository.save(company);
+  }
 
   async remove(
     companyId: string,
     requesterId: number,
   ): Promise<void> {
     const company = await this.findOne(companyId);
-
-    // Ensure the requester owns this company
     if (company.employerId !== requesterId) {
       throw new ForbiddenException(
         'You can only delete your own company',
       );
     }
 
-    await this.companyRepository.remove(company);
+    const documents = await this.dataSource
+      .getRepository(ApplicationDocument)
+      .createQueryBuilder('document')
+      .innerJoin('document.application', 'application')
+      .innerJoin('application.job', 'job')
+      .innerJoin('job.company', 'company')
+      .where('company.companyId = :companyId', { companyId })
+      .select(['document.storedName'])
+      .getMany();
+
+    await this.dataSource.transaction(async (manager) => {
+      const companies = manager.getRepository(Company);
+      const currentCompany = await companies.findOne({
+        where: { companyId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!currentCompany) {
+        throw new NotFoundException(
+          `Company with ID ${companyId} was not found`,
+        );
+      }
+      if (currentCompany.employerId !== requesterId) {
+        throw new ForbiddenException(
+          'You can only delete your own company',
+        );
+      }
+
+      await manager
+        .getRepository(Job)
+        .createQueryBuilder()
+        .delete()
+        .from(Job)
+        .where('company_id = :companyId', { companyId })
+        .execute();
+      await companies.remove(currentCompany);
+    });
+
+    removeApplicationFiles(documents.map(({ storedName }) => storedName));
   }
 }

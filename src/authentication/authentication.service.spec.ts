@@ -1,19 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
-import nodemailer from 'nodemailer';
 import * as bcrypt from 'bcrypt';
 import { validate } from 'class-validator';
+import { EmailService } from '../email/email.service.js';
 import { AuthenticationService } from './authentication.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { User } from './entities/user.entity.js';
-
-vi.mock('nodemailer', () => ({
-  default: {
-    createTransport: vi.fn(),
-  },
-}));
 
 describe('AuthenticationService', () => {
   let service: AuthenticationService;
@@ -28,24 +21,16 @@ describe('AuthenticationService', () => {
     where: vi.fn(),
     getOne: vi.fn(),
   };
-  const configValues: Record<string, string> = {
-    SMTP_USER: 'mailer@example.com',
-    SMTP_PASSWORD: 'smtp-password',
-    SMTP_HOST: 'smtp.example.com',
-    SMTP_PORT: '587',
-    SMTP_SECURE: 'false',
-    SMTP_FROM: 'noreply@example.com',
-  };
-  const configService = {
-    get: vi.fn((key: string) => configValues[key]),
-  };
   const jwtService = {
     signAsync: vi.fn(),
+  };
+  const emailService = {
+    sendEmail: vi.fn().mockResolvedValue({ messageId: 'message-id' }),
   };
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    configService.get.mockImplementation((key: string) => configValues[key]);
+    emailService.sendEmail.mockResolvedValue({ messageId: 'message-id' });
     queryBuilder.addSelect.mockReturnValue(queryBuilder);
     queryBuilder.where.mockReturnValue(queryBuilder);
     userRepository.createQueryBuilder.mockReturnValue(queryBuilder);
@@ -55,7 +40,7 @@ describe('AuthenticationService', () => {
         AuthenticationService,
         { provide: getRepositoryToken(User), useValue: userRepository },
         { provide: JwtService, useValue: jwtService },
-        { provide: ConfigService, useValue: configService },
+        { provide: EmailService, useValue: emailService },
       ],
     }).compile();
 
@@ -67,11 +52,6 @@ describe('AuthenticationService', () => {
   });
 
   it('registers public accounts as active unverified job seekers', async () => {
-    const sendMail = vi.fn().mockResolvedValue({});
-    vi.mocked(nodemailer.createTransport).mockReturnValue({
-      sendMail,
-      close: vi.fn(),
-    } as never);
     userRepository.findOne.mockResolvedValue(null);
     userRepository.save.mockImplementation(async (user) => ({
       id: 1,
@@ -94,10 +74,6 @@ describe('AuthenticationService', () => {
   });
 
   it('assigns employer role only through the dedicated employer registration flow', async () => {
-    vi.mocked(nodemailer.createTransport).mockReturnValue({
-      sendMail: vi.fn().mockResolvedValue({}),
-      close: vi.fn(),
-    } as never);
     userRepository.findOne.mockResolvedValue(null);
     userRepository.save.mockImplementation(async (user) => ({
       id: 2,
@@ -243,14 +219,9 @@ describe('AuthenticationService', () => {
       emailVerificationTokenHash: null,
       emailVerificationTokenExpiresAt: null,
     };
-    const sendMail = vi.fn().mockResolvedValue({});
-    const close = vi.fn();
     userRepository.findOne.mockResolvedValue(user);
     userRepository.save.mockImplementation(async (savedUser) => savedUser);
-    vi.mocked(nodemailer.createTransport).mockReturnValue({
-      sendMail,
-      close,
-    } as never);
+    emailService.sendEmail.mockResolvedValue({ messageId: 'message-id' });
 
     const result = await service.resendVerification(' Candidate@Example.com ');
 
@@ -262,16 +233,12 @@ describe('AuthenticationService', () => {
     expect(
       new Date(String(user.emailVerificationTokenExpiresAt)).getTime(),
     ).toBeGreaterThan(Date.now());
-    expect(nodemailer.createTransport).toHaveBeenCalledWith({
-      host: 'smtp.example.com',
-      port: 587,
-      secure: false,
-      auth: { user: 'mailer@example.com', pass: 'smtp-password' },
-    });
-    expect(sendMail).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'candidate@example.com' }),
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      'candidate@example.com',
+      'Your Job Board Verification Code',
+      expect.stringContaining('Your six-digit verification code is:'),
+      expect.stringContaining('<h1 style="letter-spacing: 8px;">'),
     );
-    expect(close).toHaveBeenCalled();
     expect(result).toEqual({
       message: 'A new six-digit verification code has been sent to your email.',
       emailSent: true,

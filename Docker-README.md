@@ -16,7 +16,7 @@ A REST API that connects job seekers and employers: registration and login, comp
 4. **Be patient on the first start.** Oracle takes about 10 to 15 minutes to initialise. The API starts automatically once the database is healthy. Later starts take under a minute.
 5. When you see `Nest application successfully started`, open:
    - API: `http://localhost:3002`
-   - Interactive documentation (Swagger): `http://localhost:3002/docs`
+   - Interactive documentation (Swagger): `http://localhost:3002/api`
 
 ### Stopping and resetting
 - Stop, keeping all data: `docker compose down`
@@ -56,7 +56,7 @@ Settings come from the `.env` file, which is never committed. `.env.example` lis
 | --- | --- |
 | `DB_USERNAME`, `DB_PASSWORD`, `DB_SERVICE_NAME` | Database account. Compose uses these to create the database and for the API. Defaults exist for demo use. |
 | `JWT_SECRET` | Secret used to sign login tokens. Required. |
-| Mail settings | TODO — list the SMTP variable names used by the email service. |
+| Mail settings | Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, and `SMTP_FROM`, plus either `SMTP_PASSWORD` or Gmail OAuth credentials. |
 | `DB_SYNCHRONIZE` | `true` lets the API create or alter tables from the code. Compose enables it for the demo database. **Set it to `false` for any database that holds real data.** |
 | `ORACLE_HOST_PORT` | Optional. Change the database port published on your machine if 1521 is taken. |
 

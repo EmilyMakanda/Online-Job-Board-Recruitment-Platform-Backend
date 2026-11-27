@@ -1,4 +1,15 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import {
   ApiBearerAuth,
@@ -12,6 +23,8 @@ import { RolesGuard } from '../authentication/guards/roles.guards.js';
 import { Roles } from '../authentication/roles.decorator.js';
 import { CreateReportDto } from './dto/create-report.dto.js';
 import { ReportsService } from './reports.service.js';
+import { ListReportsQueryDto } from './dto/list-reports-query.dto.js';
+import { ResolveReportDto } from './dto/resolve-report.dto.js';
 
 interface AuthenticatedRequest extends Request {
   user: { sub: number };
@@ -24,6 +37,21 @@ interface AuthenticatedRequest extends Request {
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
+
+  @Get()
+  @Roles('admin')
+  findAll(@Query() query: ListReportsQueryDto) {
+    return this.reportsService.findAll(query, query.status);
+  }
+
+  @Patch(':id')
+  @Roles('admin')
+  resolve(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResolveReportDto,
+  ) {
+    return this.reportsService.resolve(id, dto);
+  }
 
   @Post()
   @ApiOperation({ summary: 'Report a job posting or another user' })

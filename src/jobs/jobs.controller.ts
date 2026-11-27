@@ -1,3 +1,4 @@
+
 import {
   Body,
   Controller,
@@ -26,11 +27,12 @@ import {
 import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../authentication/guards/roles.guards.js';
 import { Roles } from '../authentication/roles.decorator.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
 
 interface AuthenticatedRequest extends Request {
   user: {
     sub: number;
-    role: 'job_seeker' | 'employer';
+    role: 'job_seeker' | 'employer' | 'admin';
   };
 }
 
@@ -51,7 +53,7 @@ export class JobController {
   @Roles('employer')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({
-    summary: 'Create a job listing for the authenticated employer',
+    summary: 'Create an immediately available job listing',
   })
   @ApiResponse({
     status: 201,
@@ -63,7 +65,7 @@ export class JobController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Only employers can create job listings.',
+    description: 'Only eligible employers can create job listings.',
   })
   createJob(@Body() dto: CreateJobDto, @Req() req: AuthenticatedRequest) {
     return this.jobService.createJob(dto, req.user.sub);
@@ -74,7 +76,7 @@ export class JobController {
   @Roles('employer')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({
-    summary: 'Submit an employer-owned draft or rejected listing for review',
+    summary: 'Publish an employer-owned eligible job listing immediately',
   })
   publishJob(@Param('jobID') jobID: string, @Req() req: AuthenticatedRequest) {
     return this.jobService.publishJob(jobID, req.user.sub);
@@ -94,8 +96,11 @@ export class JobController {
   @Roles('employer')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({ summary: 'List jobs posted by the authenticated employer' })
-  getMyJobs(@Req() req: AuthenticatedRequest) {
-    return this.jobService.getJobsByEmployer(req.user.sub);
+  getMyJobs(
+    @Req() req: AuthenticatedRequest,
+    @Query() pagination: PaginationQueryDto,
+  ) {
+    return this.jobService.getJobsByEmployer(req.user.sub, pagination);
   }
 
   @Get('search')
@@ -109,10 +114,12 @@ export class JobController {
     @Query('q') query: string,
     @Query('name') legacyName: string,
     @Query('location') location: string,
+    @Query() pagination: PaginationQueryDto,
   ) {
     return this.jobService.searchJobsByName(
       query?.trim() || legacyName,
       location,
+      pagination,
     );
   }
 
@@ -120,13 +127,15 @@ export class JobController {
   @ApiBearerAuth()
   @Roles('job_seeker')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @ApiOperation({ summary: 'Retrieve all approved job listings' })
-  @ApiResponse({ status: 200, description: 'A list of approved job listings.' })
-  getAllJobs() {
-    return this.jobService.getAllJobs();
+  @ApiOperation({ summary: 'Retrieve all available job listings' })
+  @ApiResponse({
+    status: 200,
+    description: 'A list of available job listings.',
+  })
+  getAllJobs(@Query() pagination: PaginationQueryDto) {
+    return this.jobService.getAllJobs(pagination);
   }
 
-  // Job seekers only receive open listings; employers can view their own jobs.
   @Get(':jobID')
   @ApiBearerAuth()
   @Roles('employer', 'job_seeker')
@@ -145,7 +154,6 @@ export class JobController {
       : this.jobService.getOneJob(jobID);
   }
 
-  // Update the supplied fields for a job.
   @Patch(':jobID')
   @ApiBearerAuth()
   @Roles('employer')
@@ -157,14 +165,6 @@ export class JobController {
     example: '42f83d15-c798-4a46-9e83-d0fdb60a5e15',
   })
   @ApiResponse({ status: 200, description: 'The updated job listing.' })
-  @ApiResponse({
-    status: 401,
-    description: 'A valid access token is required.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Only employers can update job listings.',
-  })
   @ApiResponse({ status: 404, description: 'Job listing not found.' })
   updateJob(
     @Param('jobID') jobID: string,
@@ -174,7 +174,6 @@ export class JobController {
     return this.jobService.updateJob(jobID, dto, req.user.sub);
   }
 
-  // Close the job to preserve its history and any associated applications.
   @Delete(':jobID')
   @ApiBearerAuth()
   @Roles('employer')
@@ -190,14 +189,6 @@ export class JobController {
   @ApiResponse({
     status: 200,
     description: 'The job listing is no longer public and remains in history.',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'A valid access token is required.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Only employers can delete job listings.',
   })
   @ApiResponse({ status: 404, description: 'Job listing not found.' })
   deleteJob(@Param('jobID') jobID: string, @Req() req: AuthenticatedRequest) {

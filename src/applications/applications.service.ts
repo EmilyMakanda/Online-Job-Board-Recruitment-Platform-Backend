@@ -14,6 +14,8 @@ import { In, Repository } from 'typeorm';
 
 import { User } from '../authentication/entities/user.entity.js';
 import type { UserRole } from '../authentication/roles.decorator.js';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto.js';
+import { paginated, paginationOptions } from '../common/pagination.js';
 import { JobService } from '../jobs/jobs.service.js';
 import { Job, JobStatus } from '../jobs/entities/jobs.entity.js';
 import { NotificationsService } from '../notification/notification.service.js';
@@ -25,13 +27,30 @@ import {
   ApplicationDocument,
   ApplicationDocumentType,
 } from './entities/application-document.entity.js';
+import {
+  APPLICATION_UPLOAD_DIR,
+  removeApplicationFiles,
+} from './application-file-storage.js';
 import { CreateApplicationDto } from './dto/create-application.dto.js';
 import type { UpdateApplicationDto } from './dto/update-application.dto.js';
 import type { UpdateApplicationStatusDto } from './dto/update-application-status.dto.js';
 
-const UPLOAD_DIR = join(process.cwd(), 'uploads', 'applications');
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_SUPPORTING_FILES = 5;
+const APPLICATION_ANSWER_KEYS = [
+  'highestEducation',
+  'fieldOfStudy',
+  'yearsOfExperience',
+  'currentEmploymentStatus',
+  'expectedSalary',
+  'noticePeriod',
+  'availableStartDate',
+  'willingToRelocate',
+  'portfolioUrl',
+  'linkedinUrl',
+  'additionalAnswers',
+  'coverLetter',
+] as const;
 const ALLOWED_FILE_TYPES = new Map([
   ['.pdf', 'application/pdf'],
   ['.txt', 'text/plain'],
@@ -96,7 +115,7 @@ export class ApplicationsService {
     private readonly userRepository: Repository<User>,
     private readonly notificationsService: NotificationsService,
   ) {
-    mkdirSync(UPLOAD_DIR, { recursive: true });
+    mkdirSync(APPLICATION_UPLOAD_DIR, { recursive: true });
   }
 
   async create(
@@ -112,9 +131,6 @@ export class ApplicationsService {
     let savedApplication: Application;
 
     try {
-      if (!cv) {
-        throw new BadRequestException('CV is required for application.');
-      }
       if (supportingFiles.length > MAX_SUPPORTING_FILES) {
         throw new BadRequestException(
           `No more than ${MAX_SUPPORTING_FILES} supporting files are allowed.`,
@@ -129,6 +145,50 @@ export class ApplicationsService {
         throw new BadRequestException(
           'This job is not accepting applications.',
         );
+      }
+
+      const requirements = job.applicationRequirements ?? [];
+      const requiredFields = requirements.filter(
+        (requirement) =>
+          requirement.isEnabled === 1 && requirement.isRequired === 1,
+      );
+      for (const requirement of requiredFields) {
+        const answer =
+          requirement.fieldKey === 'cv'
+            ? cv
+            : dto[requirement.fieldKey as keyof CreateApplicationDto];
+        if (
+          answer === undefined ||
+          answer === null ||
+          (typeof answer === 'string' && !answer.trim())
+        ) {
+          throw new BadRequestException(
+            `${requirement.fieldLabel} is required for this application.`,
+          );
+        }
+      }
+
+      const enabledKeys = new Set(
+        requirements
+          .filter((requirement) => requirement.isEnabled === 1)
+          .map(({ fieldKey }) => fieldKey),
+      );
+      if (cv && !enabledKeys.has('cv')) {
+        throw new BadRequestException(
+          'This job does not accept a CV document.',
+        );
+      }
+
+      const answers: Record<string, string | number | boolean> = {};
+      for (const key of APPLICATION_ANSWER_KEYS) {
+        const value = dto[key];
+        if (
+          enabledKeys.has(key) &&
+          value !== undefined &&
+          key !== 'coverLetter'
+        ) {
+          answers[key] = value;
+        }
       }
 
       savedApplication = await this.applicationRepository.manager.transaction(
@@ -151,12 +211,27 @@ export class ApplicationsService {
           const application = applications.create({
             job,
             jobSeekerId,
+<<<<<<< feature/application-module
+=======
+            coverLetter: enabledKeys.has('coverLetter')
+              ? dto.coverLetter?.trim() || null
+              : null,
+            answers: JSON.stringify(answers),
+>>>>>>> main
             status: ApplicationStatus.SUBMITTED,
           });
           const saved = await applications.save(application);
 
           const records = [
-            this.createDocumentRecord(cv, saved, ApplicationDocumentType.CV),
+            ...(cv && enabledKeys.has('cv')
+              ? [
+                  this.createDocumentRecord(
+                    cv,
+                    saved,
+                    ApplicationDocumentType.CV,
+                  ),
+                ]
+              : []),
             ...supportingFiles.map((file) =>
               this.createDocumentRecord(
                 file,
@@ -181,6 +256,7 @@ export class ApplicationsService {
     await this.notifyUser(
       jobSeekerId,
       `Your application for "${job.title}" was submitted successfully.`,
+      'Application received',
     );
     return this.presentApplication(savedApplication);
   }
@@ -216,7 +292,7 @@ export class ApplicationsService {
       storedName,
       mimeType: file.mimetype,
       fileSize: file.size,
-      filePath: join(UPLOAD_DIR, storedName),
+      filePath: join(APPLICATION_UPLOAD_DIR, storedName),
     });
   }
 
@@ -247,20 +323,7 @@ export class ApplicationsService {
   }
 
   private removeStoredFiles(documents: ApplicationDocument[]): void {
-    for (const document of documents) {
-      const filePath = join(UPLOAD_DIR, basename(document.storedName));
-      if (!existsSync(filePath)) {
-        continue;
-      }
-      try {
-        unlinkSync(filePath);
-      } catch (error) {
-        this.logger.error(
-          `Could not remove application document ${document.documentId}.`,
-          error instanceof Error ? error.stack : undefined,
-        );
-      }
-    }
+    removeApplicationFiles(documents.map(({ storedName }) => storedName));
   }
 
   private async findApplication(
@@ -280,6 +343,7 @@ export class ApplicationsService {
   private presentApplication(application: Application) {
     return {
       ...application,
+      answers: application.answers ? JSON.parse(application.answers) : {},
       documents: (application.documents ?? []).map((document) => ({
         documentId: document.documentId,
         applicationId: document.applicationId,
@@ -299,25 +363,36 @@ export class ApplicationsService {
     );
   }
 
-  async findByJobSeeker(jobSeekerId: number) {
-    const applications = await this.applicationRepository.find({
+  async findByJobSeeker(
+    jobSeekerId: number,
+    pagination = new PaginationQueryDto(),
+  ) {
+    const [applications, total] =
+      await this.applicationRepository.findAndCount({
       where: { jobSeekerId },
       relations: { job: true, documents: true },
       order: { appliedAt: 'DESC' },
+      ...paginationOptions(pagination),
     });
-    return applications.map((application) =>
+    const items = applications.map((application) =>
       this.presentApplication(application),
     );
+    return paginated([items, total], pagination);
   }
 
-  async findByEmployer(employerId: number) {
-    const applications = await this.applicationRepository.find({
+  async findByEmployer(
+    employerId: number,
+    pagination = new PaginationQueryDto(),
+  ) {
+    const [applications, total] =
+      await this.applicationRepository.findAndCount({
       where: { job: { postedBy: { id: employerId } } },
       relations: { job: true, documents: true },
       order: { appliedAt: 'DESC' },
+      ...paginationOptions(pagination),
     });
     if (applications.length === 0) {
-      return [];
+      return paginated([[], total], pagination);
     }
 
     const applicants = await this.userRepository.find({
@@ -335,10 +410,11 @@ export class ApplicationsService {
       applicants.map((applicant) => [applicant.id, applicant]),
     );
 
-    return applications.map((application) => ({
+    const items = applications.map((application) => ({
       ...this.presentApplication(application),
       applicant: applicantsById.get(application.jobSeekerId) ?? null,
     }));
+    return paginated([items, total], pagination);
   }
 
   async update(
@@ -419,9 +495,15 @@ export class ApplicationsService {
         return applications.save(application);
       },
     );
+    const isShortlisted = saved.status === ApplicationStatus.SHORTLISTED;
     await this.notifyUser(
       saved.jobSeekerId,
-      `The status of your application for "${saved.job.title}" is now ${saved.status}.`,
+      isShortlisted
+        ? `Congratulations! Your application for "${saved.job.title}" has been shortlisted.`
+        : `The status of your application for "${saved.job.title}" is now ${saved.status}.`,
+      isShortlisted
+        ? 'Congratulations, you have been shortlisted'
+        : 'Application status update',
     );
 
     return this.findOne(saved.applicationId, saved.jobSeekerId);
@@ -465,6 +547,11 @@ export class ApplicationsService {
       },
     );
     this.removeStoredFiles(documents);
+    await this.notifyUser(
+      jobSeekerId,
+      'Your application has been withdrawn.',
+      'Application withdrawn',
+    );
   }
 
   async getDocumentForUser(
@@ -494,7 +581,10 @@ export class ApplicationsService {
       throw new ForbiddenException('You do not have access to this document.');
     }
 
-    const filePath = join(UPLOAD_DIR, basename(document.storedName));
+    const filePath = join(
+      APPLICATION_UPLOAD_DIR,
+      basename(document.storedName),
+    );
     if (!existsSync(filePath)) {
       throw new NotFoundException('The application document is unavailable.');
     }
@@ -502,7 +592,11 @@ export class ApplicationsService {
     return document;
   }
 
-  private async notifyUser(userId: number, message: string): Promise<void> {
+  private async notifyUser(
+    userId: number,
+    message: string,
+    subject: string,
+  ): Promise<void> {
     try {
       const user = await this.userRepository.findOne({
         where: { id: userId },
@@ -512,6 +606,7 @@ export class ApplicationsService {
           userId,
           message,
           email: user.email,
+          subject,
         });
       }
     } catch (error) {

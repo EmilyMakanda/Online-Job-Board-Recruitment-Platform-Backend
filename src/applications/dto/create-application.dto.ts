@@ -1,6 +1,16 @@
-import { ApiProperty, ApiPropertyOptional, DeepPartial } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, MaxLength, IsNumber, Min, IsBoolean, IsDateString, IsUrl, } from 'class-validator';
-import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUrl,
+  IsUUID,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateApplicationDto {
   @ApiProperty({
@@ -21,7 +31,7 @@ export class CreateApplicationDto {
 
   @ApiPropertyOptional({
     description: 'Applicant field of study',
-    example: 'Computer Science'
+    example: 'Computer Science',
   })
   @IsOptional()
   @IsString()
@@ -42,6 +52,10 @@ export class CreateApplicationDto {
     description: 'Applicant current employment status',
     example: 'Employed',
   })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  currentEmploymentStatus?: string;
 
   @ApiPropertyOptional({
     description: 'Expected salary',
@@ -75,7 +89,9 @@ export class CreateApplicationDto {
     example: true,
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(({ value }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
   @IsBoolean()
   willingToRelocate?: boolean;
 
@@ -98,7 +114,7 @@ export class CreateApplicationDto {
   linkedinUrl?: string;
 
   @ApiPropertyOptional({
-    description:'Answers to additional employer-defined application questions',
+    description: 'Answers to additional employer-defined application questions',
     example: '{"whyJoinUs": "I am interested in this postion"}',
   })
   @IsOptional()

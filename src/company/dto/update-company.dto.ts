@@ -6,7 +6,9 @@ import {
   IsUrl,
   Length,
   MaxLength,
+  IsNotEmpty,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UpdateCompanyDto {
   @ApiPropertyOptional({
@@ -14,7 +16,11 @@ export class UpdateCompanyDto {
     description: 'Updated company name',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
+  @IsNotEmpty()
   @Length(2, 150)
   companyName?: string;
 
@@ -23,6 +29,9 @@ export class UpdateCompanyDto {
     description: 'Updated company description',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @MaxLength(2000)
   description?: string;
@@ -32,16 +41,7 @@ export class UpdateCompanyDto {
     description: 'Updated official company website',
   })
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_protocol: true })
   @MaxLength(255)
   website?: string;
-
-  @ApiPropertyOptional({
-    example: 'Lilongwe',
-    description: 'Updated company location',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  location?: string;
 }
